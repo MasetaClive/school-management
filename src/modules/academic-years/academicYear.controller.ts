@@ -1,0 +1,84 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser, getUserRole } from '@/lib/auth';
+import {
+  createAcademicYearSchema,
+  updateAcademicYearSchema,
+} from './academicYear.validation';
+import { AcademicYearService, AcademicYearServiceError } from './academicYear.service';
+
+class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function ensureAdmin() {
+  const user = await getCurrentUser();
+  if (!user) throw new ApiError('Unauthorized', 401);
+
+  const role = await getUserRole();
+  if (role !== 'admin') throw new ApiError('Forbidden', 403);
+}
+
+function toJsonError(e: unknown) {
+  if (e instanceof ApiError || e instanceof AcademicYearServiceError) {
+    return NextResponse.json({ error: e.message }, { status: e.status });
+  }
+  if (e instanceof Error && e.name === 'ZodError') {
+    return NextResponse.json({ error: 'Validation failed' }, { status: 400 });
+  }
+  // eslint-disable-next-line no-console
+  console.error('[academic-years] unexpected error', e);
+  return NextResponse.json(
+    { error: 'Internal server error' },
+    { status: 500 },
+  );
+}
+
+export const AcademicYearController = {
+  async list(req: NextRequest) {
+    try {
+      await ensureAdmin();
+      const result = await AcademicYearService.getAcademicYears();
+      return NextResponse.json({ data: result }, { status: 200 });
+    } catch (e) {
+      return toJsonError(e);
+    }
+  },
+
+  async create(req: NextRequest) {
+    try {
+      await ensureAdmin();
+      const body = await req.json();
+      const input = createAcademicYearSchema.parse(body);
+
+      const academicYear = await AcademicYearService.createAcademicYear(input);
+      return NextResponse.json({ data: academicYear }, { status: 201 });
+    } catch (e) {
+      return toJsonError(e);
+    }
+  },
+
+  async update(req: NextRequest, id: string) {
+    try {
+      await ensureAdmin();
+      const body = await req.json();
+      const input = updateAcademicYearSchema.parse(body);
+
+      let result;
+      if (input.is_active !== undefined && input.is_active === true) {
+        result = await AcademicYearService.setActiveYear(id);
+      } else if (input.is_closed !== undefined && input.is_closed === true) {
+        result = await AcademicYearService.closeAcademicYear(id);
+      } else {
+        throw new ApiError('Invalid update requested', 400);
+      }
+      
+      return NextResponse.json({ data: result }, { status: 200 });
+    } catch (e) {
+      return toJsonError(e);
+    }
+  },
+};
