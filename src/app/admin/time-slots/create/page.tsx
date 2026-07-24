@@ -19,7 +19,7 @@ export default function CreateTimeSlotPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [form, setForm] = useState({
-        day_of_week: 1, // Default to Monday
+        day_of_week: 1,
         start_time: '08:00',
         end_time: '09:00',
     });

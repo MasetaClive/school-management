@@ -4,6 +4,7 @@ import {
     createResultSchema,
     updateResultSchema,
     listResultsQuerySchema,
+    resultIdParamSchema,
 } from './result.validation';
 import { ResultService, ResultServiceError } from './result.service';
 
@@ -30,7 +31,6 @@ function toJsonError(e: unknown) {
     if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
         return NextResponse.json({ error: (e as any).message }, { status: 400 });
     }
-    // eslint-disable-next-line no-console
     console.error('[results] unexpected error', e);
     return NextResponse.json(
         { error: 'Internal server error' },
@@ -48,6 +48,7 @@ export const ResultController = {
                 page: url.searchParams.get('page') ?? undefined,
                 student_id: url.searchParams.get('student_id') ?? undefined,
                 exam_id: url.searchParams.get('exam_id') ?? undefined,
+                search: url.searchParams.get('search') ?? undefined,
             });
 
             const result = await ResultService.listResults(query);
@@ -73,7 +74,7 @@ export const ResultController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const record = await ResultService.getResultById(id);
+            const record = await ResultService.getResultById(resultIdParamSchema.parse(id));
             return NextResponse.json(record, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -83,10 +84,11 @@ export const ResultController = {
     async update(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
+            const resultId = resultIdParamSchema.parse(id);
             const body = await req.json();
             const input = updateResultSchema.parse(body);
 
-            const record = await ResultService.updateResult(id, input);
+            const record = await ResultService.updateResult(resultId, input);
             return NextResponse.json(record, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -96,7 +98,7 @@ export const ResultController = {
     async delete(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const result = await ResultService.deleteResult(id);
+            const result = await ResultService.deleteResult(resultIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);

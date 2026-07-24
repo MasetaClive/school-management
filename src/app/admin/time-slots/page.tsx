@@ -33,12 +33,15 @@ export default function TimeSlotsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [search, setSearch] = useState('');
 
     async function load() {
         try {
             setLoading(true);
             setError(null);
-            const res = await fetch(`/api/admin/time-slots?page=${page}`);
+            const params = new URLSearchParams({ page: String(page) });
+            if (search) params.set('search', search);
+            const res = await fetch(`/api/admin/time-slots?${params}`);
             const json = await res.json();
             if (!res.ok) {
                 throw new Error(json.error ?? 'Failed to load time slots');
@@ -81,6 +84,11 @@ export default function TimeSlotsPage() {
                 >
                     Add Slot
                 </Link>
+            </div>
+
+            <div className="flex gap-2">
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search start or end time (HH:MM)" className="border rounded-md px-3 py-2 text-sm" />
+                <button onClick={() => { if (page === 1) void load(); else setPage(1); }} className="border rounded-md px-3 py-2 text-sm">Search</button>
             </div>
 
             {loading && <p>Loading time slots...</p>}

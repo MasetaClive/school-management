@@ -1,5 +1,4 @@
 'use client';
-// Triggering dev server update
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -29,6 +28,7 @@ export default function CreateStudentPage() {
         admission_date: '',
         academic_year: new Date().getFullYear().toString(),
         create_account: true,
+        password_mode: 'auto' as 'auto' | 'manual',
         password: '',
     });
 
@@ -64,7 +64,7 @@ export default function CreateStudentPage() {
                 date_of_birth: form.date_of_birth || undefined,
                 admission_date: form.admission_date || undefined,
                 gender: form.gender || undefined,
-                password: form.create_account ? form.password : undefined,
+                password: form.create_account && form.password_mode === 'manual' ? form.password : undefined,
             };
 
             const res = await fetch('/api/admin/students', {
@@ -75,6 +75,10 @@ export default function CreateStudentPage() {
 
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'Failed to create student');
+
+            if (json.account) {
+                alert(`Account created.\nUsername: ${json.account.username}\nTemporary password: ${json.account.initialPassword}\nThe user must change this password on first sign-in.`);
+            }
 
             router.push('/admin/students');
             router.refresh();
@@ -235,24 +239,35 @@ export default function CreateStudentPage() {
                             <div className="space-y-4">
                                 <label className={labelClasses + " text-slate-500"}>Assigned Login ID (Auto)</label>
                                 <div className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-5 py-4 text-xs font-black text-indigo-400 italic">
-                                    {form.student_id ? `${form.student_id.toLowerCase()}@school.local` : 'ENTER STUDENT ID TO PREVIEW...'}
+                                    {form.student_id || 'ENTER STUDENT ID TO PREVIEW...'}
                                 </div>
                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
                                     This will be the permanent cryptographic identity for terminal access.
                                 </p>
                             </div>
                             <div>
-                                <label className={labelClasses + " text-slate-500"}>Initial Access Password *</label>
+                                <label className={labelClasses + " text-slate-500"}>Password Setup</label>
+                                <select
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-5 py-4 text-xs font-bold text-white focus:border-indigo-500 outline-none transition-all"
+                                    value={form.password_mode}
+                                    onChange={(e) => setForm({ ...form, password_mode: e.target.value as 'auto' | 'manual' })}
+                                >
+                                    <option value="auto">Generate secure temporary password</option>
+                                    <option value="manual">Enter a temporary password</option>
+                                </select>
+                                {form.password_mode === 'manual' && <>
+                                <label className={labelClasses + " text-slate-500 mt-4"}>Initial Access Password *</label>
                                 <input
-                                    required={form.create_account}
+                                    required
                                     type="password"
                                     placeholder="Minimum 6 characters"
                                     className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-5 py-4 text-xs font-bold text-white focus:border-indigo-500 outline-none transition-all shadow-inner"
                                     value={form.password}
                                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                                 />
+                                </>}
                                 <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                                    Recommend a mix of alphanumeric tokens for maximum security.
+                                    The user will be required to change this password on first sign-in.
                                 </p>
                             </div>
                         </div>

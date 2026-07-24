@@ -16,23 +16,33 @@ export class ClassServiceError extends Error {
 const PAGE_SIZE = 20;
 
 export class ClassService {
-    static async ensureClassUnique(name: string, academic_year: string) {
+    static async ensureClassUnique(name: string, academic_year: string, excludeId?: string) {
         const supabase = await createClient();
-        const { data, error } = await supabase
+        let query = supabase
             .from('classes')
             .select('id')
             .eq('name', name)
-            .eq('academic_year', academic_year)
-            .maybeSingle();
+            .eq('academic_year', academic_year);
 
+        if (excludeId) query = query.neq('id', excludeId);
+        const { data, error } = await query.maybeSingle();
         if (error) throw new ClassServiceError('Failed to validate class uniqueness', 500);
         if (data) throw new ClassServiceError('Class with this name already exists for the academic year', 400);
+    }
+
+    static async ensureAcademicYearExists(academicYear: string) {
+        const supabase = await createClient();
+        const { data, error } = await supabase.from('academic_years').select('id, is_closed').eq('year', academicYear).maybeSingle();
+        if (error) throw new ClassServiceError('Failed to validate academic year', 500);
+        if (!data) throw new ClassServiceError('Academic year not found', 400);
+        if (data.is_closed) throw new ClassServiceError('Cannot assign a class to a closed academic year', 409);
     }
 
     static async createClass(input: CreateClassInput) {
         const { name, grade_level, academic_year } = input;
 
         await this.ensureClassUnique(name, academic_year);
+        await this.ensureAcademicYearExists(academic_year);
 
         const supabase = await createClient();
         const { data, error } = await supabase
@@ -70,20 +80,27 @@ export class ClassService {
 
     static async updateClass(id: string, input: UpdateClassInput) {
         const existing = await this.getClassById(id);
+        const name = input.name ?? existing.name;
+        const academicYear = input.academic_year ?? existing.academic_year;
+        await this.ensureClassUnique(name, academicYear, id);
+        await this.ensureAcademicYearExists(academicYear);
 
         const supabase = await createClient();
         const { data, error } = await supabase
             .from('classes')
             .update({
-                name: input.name ?? existing.name,
+                name,
                 grade_level: input.grade_level ?? existing.grade_level,
-                academic_year: input.academic_year ?? existing.academic_year,
+                academic_year: academicYear,
             })
             .eq('id', id)
             .select('*')
             .single();
 
         if (error) {
+            if (error.code === '23505') {
+                throw new ClassServiceError('Class with this name already exists for the academic year', 409);
+            }
             throw new ClassServiceError('Failed to update class', 500);
         }
 
@@ -95,22 +112,26 @@ export class ClassService {
 
         const supabase = await createClient();
 
-        const { count, error: countError } = await supabase
-            .from('students')
-            .select('id', { count: 'exact', head: true })
-            .eq('class_id', id);
-
-        if (countError) {
-            throw new ClassServiceError('Failed to check linked students', 500);
-        }
-
-        if ((count ?? 0) > 0) {
-            throw new ClassServiceError('Cannot delete class with enrolled students', 409);
+        const checks = await Promise.all([
+            supabase.from('students').select('id', { count: 'exact', head: true }).eq('class_id', id),
+            supabase.from('class_teachers').select('id', { count: 'exact', head: true }).eq('class_id', id),
+            supabase.from('subject_assignments').select('id', { count: 'exact', head: true }).eq('class_id', id),
+            supabase.from('timetable_entries').select('id', { count: 'exact', head: true }).eq('class_id', id),
+            supabase.from('student_attendance').select('id', { count: 'exact', head: true }).eq('class_id', id),
+            supabase.from('homework').select('id', { count: 'exact', head: true }).eq('class_id', id),
+            supabase.from('exams').select('id', { count: 'exact', head: true }).eq('class_id', id),
+        ]);
+        if (checks.some((check) => check.error)) throw new ClassServiceError('Failed to check class dependencies', 500);
+        if (checks.some((check) => (check.count ?? 0) > 0)) {
+            throw new ClassServiceError('Cannot delete class with dependent records.', 409);
         }
 
         const { error } = await supabase.from('classes').delete().eq('id', id);
 
         if (error) {
+            if (error.code === 'P0001') {
+                throw new ClassServiceError('Cannot delete class with dependent records.', 409);
+            }
             throw new ClassServiceError('Failed to delete class', 500);
         }
 

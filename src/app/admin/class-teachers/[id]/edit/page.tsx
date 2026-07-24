@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
+type SelectOption = { id: string; name?: string; full_name?: string; grade_level?: string; teacher_id?: string; year?: string };
+
 export default function EditClassTeacherPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
@@ -13,21 +15,35 @@ export default function EditClassTeacherPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [form, setForm] = useState({
-        class_name: '',
-        teacher_name: '',
+        class_id: '',
+        teacher_id: '',
         is_homeroom: false,
         academic_year: '',
     });
+    const [classes, setClasses] = useState<SelectOption[]>([]);
+    const [teachers, setTeachers] = useState<SelectOption[]>([]);
+    const [academicYears, setAcademicYears] = useState<SelectOption[]>([]);
 
     useEffect(() => {
         async function load() {
             try {
-                const res = await fetch(`/api/admin/class-teachers/${id}`);
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error ?? 'Failed to load assignment');
+                const [assignmentResponse, classesResponse, teachersResponse, yearsResponse] = await Promise.all([
+                    fetch(`/api/admin/class-teachers/${id}`),
+                    fetch('/api/admin/classes'),
+                    fetch('/api/admin/teachers'),
+                    fetch('/api/admin/academic-years'),
+                ]);
+                const [data, classesData, teachersData, yearsData] = await Promise.all([
+                    assignmentResponse.json(), classesResponse.json(), teachersResponse.json(), yearsResponse.json(),
+                ]);
+                if (!assignmentResponse.ok) throw new Error(data.error ?? 'Failed to load assignment');
+                if (!classesResponse.ok || !teachersResponse.ok || !yearsResponse.ok) throw new Error('Failed to load assignment options');
+                setClasses(classesData.data ?? []);
+                setTeachers(teachersData.data ?? []);
+                setAcademicYears(yearsData.data ?? []);
                 setForm({
-                    class_name: `${data.class.name} (${data.class.grade_level})`,
-                    teacher_name: data.teacher.full_name,
+                    class_id: data.class_id,
+                    teacher_id: data.teacher_id,
                     is_homeroom: data.is_homeroom,
                     academic_year: data.academic_year,
                 });
@@ -49,10 +65,7 @@ export default function EditClassTeacherPage() {
             const res = await fetch(`/api/admin/class-teachers/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    is_homeroom: form.is_homeroom,
-                    academic_year: form.academic_year,
-                }),
+                body: JSON.stringify(form),
             });
 
             const json = await res.json();
@@ -89,28 +102,32 @@ export default function EditClassTeacherPage() {
             <form onSubmit={handleSubmit} className="bg-card p-8 rounded-lg border shadow-sm space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Class (Read Only)</label>
-                        <div className="px-3 py-2 bg-muted/30 border rounded-md text-sm font-medium text-muted-foreground">
-                            {form.class_name}
-                        </div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Class *</label>
+                        <select className="w-full border rounded-md px-3 py-2 text-sm bg-background" value={form.class_id} onChange={(e) => setForm((current) => ({ ...current, class_id: e.target.value }))} required>
+                            <option value="">Select class...</option>
+                            {classes.map((classOption) => <option key={classOption.id} value={classOption.id}>{classOption.name} {classOption.grade_level ? `(${classOption.grade_level})` : ''}</option>)}
+                        </select>
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Teacher (Read Only)</label>
-                        <div className="px-3 py-2 bg-muted/30 border rounded-md text-sm font-medium text-muted-foreground">
-                            {form.teacher_name}
-                        </div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Teacher *</label>
+                        <select className="w-full border rounded-md px-3 py-2 text-sm bg-background" value={form.teacher_id} onChange={(e) => setForm((current) => ({ ...current, teacher_id: e.target.value }))} required>
+                            <option value="">Select teacher...</option>
+                            {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.full_name} {teacher.teacher_id ? `(${teacher.teacher_id})` : ''}</option>)}
+                        </select>
                     </div>
 
                     <div className="space-y-2">
                         <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Academic Year *</label>
-                        <input
-                            type="text"
+                        <select
                             className="w-full border rounded-md px-3 py-2 text-sm bg-background focus:ring-2 focus:ring-primary/20 outline-none transition font-medium"
                             value={form.academic_year}
                             onChange={(e) => setForm((f) => ({ ...f, academic_year: e.target.value }))}
                             required
-                        />
+                        >
+                            <option value="">Select academic year...</option>
+                            {academicYears.map((year) => <option key={year.id} value={year.year}>{year.year}</option>)}
+                        </select>
                     </div>
 
                     <div className="flex items-center space-x-2 pt-6">

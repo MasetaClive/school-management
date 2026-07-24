@@ -18,14 +18,15 @@ export const updateClassSchema = z
 
 export const listClassesQuerySchema = z.object({
     page: z
-        .string()
-        .transform((v) => {
-            const n = Number(v);
-            return Number.isNaN(n) || n < 1 ? 1 : n;
-        })
+        .coerce.number()
+        .int()
+        .positive()
+        .catch(1)
         .optional(),
-    search: z.string().optional(),
+    search: z.string().trim().max(100).catch('').optional(),
 });
+
+export const classIdParamSchema = z.string().uuid('Invalid class ID');
 
 export type CreateClassInput = z.infer<typeof createClassSchema>;
 export type UpdateClassInput = z.infer<typeof updateClassSchema>;

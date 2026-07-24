@@ -134,22 +134,24 @@ export default function EditStudentAttendancePage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-1">Student (Read-only)</label>
+                    <label className="block text-sm font-medium mb-1">Student *</label>
                     <select
-                        className="w-full border rounded-md px-3 py-2 text-sm bg-muted cursor-not-allowed"
+                        className="w-full border rounded-md px-3 py-2 text-sm bg-background"
                         value={form.student_id}
-                        disabled
+                        onChange={(e) => setForm(f => ({ ...f, student_id: e.target.value }))}
+                        required
                     >
                         {students.map(s => <option key={s.id} value={s.id}>{s.full_name} ({s.student_id})</option>)}
                     </select>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-1">Class (Read-only)</label>
+                    <label className="block text-sm font-medium mb-1">Class *</label>
                     <select
-                        className="w-full border rounded-md px-3 py-2 text-sm bg-muted cursor-not-allowed"
+                        className="w-full border rounded-md px-3 py-2 text-sm bg-background"
                         value={form.class_id}
-                        disabled
+                        onChange={(e) => setForm(f => ({ ...f, class_id: e.target.value }))}
+                        required
                     >
                         {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>

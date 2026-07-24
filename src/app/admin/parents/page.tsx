@@ -84,7 +84,7 @@ export default function ParentsPage() {
             <div className="flex gap-2 items-center">
                 <input
                     className="border border-input rounded-md px-3 py-2 text-sm bg-background"
-                    placeholder="Search by full name"
+                    placeholder="Search by name, ID, email, or phone"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                 />

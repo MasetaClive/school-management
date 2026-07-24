@@ -21,6 +21,9 @@ type ReportData = {
         totalMax: number;
         overallPercentage: number;
         overallGrade: string;
+        passed: boolean | null;
+        resultCount: number;
+        isComplete: boolean;
     };
 };
 
@@ -116,6 +119,7 @@ function StudentReportCardPageContent({ params }: { params: Promise<{ studentId:
                             </tr>
                         </thead>
                         <tbody>
+                            {report.subjects.length === 0 && <tr><td colSpan={5} className="border border-muted print:border-black px-4 py-6 text-center text-muted-foreground">No results have been recorded for this exam.</td></tr>}
                             {report.subjects.map((s, i) => (
                                 <tr key={i} className="hover:bg-muted/30">
                                     <td className="border border-muted print:border-black px-4 py-3 font-medium">{s.subject}</td>
@@ -144,8 +148,8 @@ function StudentReportCardPageContent({ params }: { params: Promise<{ studentId:
                         </div>
                         <div className="flex justify-between items-center px-4">
                             <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Result Status:</span>
-                            <span className={`text-lg font-black uppercase ${report.summary.overallPercentage >= 40 ? 'text-green-600' : 'text-red-600'}`}>
-                                {report.summary.overallPercentage >= 40 ? 'Passed' : 'Failed'}
+                            <span className={`text-lg font-black uppercase ${report.summary.passed === true ? 'text-green-600' : report.summary.passed === false ? 'text-red-600' : 'text-muted-foreground'}`}>
+                                {report.summary.passed === null ? 'Not available' : report.summary.passed ? 'Passed' : 'Failed'}
                             </span>
                         </div>
                     </div>

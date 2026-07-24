@@ -16,7 +16,16 @@ export const createStudentSchema = z.object({
   admission_date: z.string().optional(), // ISO date string
   academic_year: z.string().min(1, 'Academic year is required'),
   create_account: z.boolean().optional(),
+  password_mode: z.enum(['auto', 'manual']).default('auto'),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+}).superRefine((data, ctx) => {
+  if (data.create_account && data.password_mode === 'manual' && !data.password) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['password'],
+      message: 'Password is required when manual password mode is selected',
+    });
+  }
 });
 
 export const updateStudentSchema = z.object({
@@ -27,7 +36,7 @@ export const updateStudentSchema = z.object({
   parent_id: z.string().uuid().optional(),
   guardian_name: z.string().optional(),
   guardian_phone: z.string().optional(),
-  guardian_email: z.string().email().optional(),
+  guardian_email: z.string().email().or(z.literal('')).optional(),
   medical_info: z
     .union([z.string(), z.record(z.string(), z.unknown())])
     .optional(),
@@ -48,7 +57,8 @@ export const listStudentsQuerySchema = z.object({
   academic_year: z.string().optional(),
 });
 
+export const studentIdParamSchema = z.string().uuid('Invalid student ID');
+
 export type CreateStudentInput = z.infer<typeof createStudentSchema>;
 export type UpdateStudentInput = z.infer<typeof updateStudentSchema>;
 export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>;
-

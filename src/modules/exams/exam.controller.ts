@@ -4,6 +4,7 @@ import {
     createExamSchema,
     updateExamSchema,
     listExamsQuerySchema,
+    examIdParamSchema,
 } from './exam.validation';
 import { ExamService, ExamServiceError } from './exam.service';
 
@@ -30,7 +31,6 @@ function toJsonError(e: unknown) {
     if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
         return NextResponse.json({ error: (e as any).message }, { status: 400 });
     }
-    // eslint-disable-next-line no-console
     console.error('[exams] unexpected error', e);
     return NextResponse.json(
         { error: 'Internal server error' },
@@ -48,6 +48,11 @@ export const ExamController = {
                 page: url.searchParams.get('page') ?? undefined,
                 class_id: url.searchParams.get('class_id') ?? undefined,
                 subject_id: url.searchParams.get('subject_id') ?? undefined,
+                teacher_id: url.searchParams.get('teacher_id') ?? undefined,
+                academic_year: url.searchParams.get('academic_year') ?? undefined,
+                exam_type: url.searchParams.get('exam_type') ?? undefined,
+                exam_date: url.searchParams.get('exam_date') ?? undefined,
+                search: url.searchParams.get('search') ?? undefined,
             });
 
             const result = await ExamService.listExams(query);
@@ -73,7 +78,7 @@ export const ExamController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const exam = await ExamService.getExamById(id);
+            const exam = await ExamService.getExamById(examIdParamSchema.parse(id));
             return NextResponse.json(exam, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -83,10 +88,11 @@ export const ExamController = {
     async update(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
+            const examId = examIdParamSchema.parse(id);
             const body = await req.json();
             const input = updateExamSchema.parse(body);
 
-            const exam = await ExamService.updateExam(id, input);
+            const exam = await ExamService.updateExam(examId, input);
             return NextResponse.json(exam, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -96,7 +102,7 @@ export const ExamController = {
     async delete(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const result = await ExamService.deleteExam(id);
+            const result = await ExamService.deleteExam(examIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);

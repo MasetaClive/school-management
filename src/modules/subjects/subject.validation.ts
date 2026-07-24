@@ -1,14 +1,15 @@
 import { z } from 'zod';
 
 export const createSubjectSchema = z.object({
-    name: z.string().min(1, 'Name is required'),
-    code: z.string().min(1, 'Code is required'),
+    name: z.string().trim().min(1, 'Name is required'),
+    code: z.string().trim().min(1, 'Code is required'),
     description: z.string().optional().nullable(),
 });
 
 export const updateSubjectSchema = z
     .object({
-        name: z.string().min(1).optional(),
+        name: z.string().trim().min(1).optional(),
+        code: z.string().trim().min(1).optional(),
         description: z.string().optional().nullable(),
     })
     .refine((data) => Object.values(data).some((v) => v !== undefined), {
@@ -25,6 +26,8 @@ export const listSubjectsQuerySchema = z.object({
         .optional(),
     search: z.string().optional(),
 });
+
+export const subjectIdParamSchema = z.string().uuid('Invalid subject ID');
 
 export type CreateSubjectInput = z.infer<typeof createSubjectSchema>;
 export type UpdateSubjectInput = z.infer<typeof updateSubjectSchema>;

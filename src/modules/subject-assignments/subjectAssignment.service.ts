@@ -16,6 +16,26 @@ export class SubjectAssignmentServiceError extends Error {
 const PAGE_SIZE = 20;
 
 export class SubjectAssignmentService {
+    private static async ensureReferencesExist(
+        teacherId: string,
+        subjectId: string,
+        classId: string,
+    ) {
+        const supabase = await createClient();
+        const [teacher, subject, classRecord] = await Promise.all([
+            supabase.from('teachers').select('id').eq('id', teacherId).maybeSingle(),
+            supabase.from('subjects').select('id').eq('id', subjectId).maybeSingle(),
+            supabase.from('classes').select('id').eq('id', classId).maybeSingle(),
+        ]);
+
+        if (teacher.error || subject.error || classRecord.error) {
+            throw new SubjectAssignmentServiceError('Failed to validate assignment references', 500);
+        }
+        if (!teacher.data) throw new SubjectAssignmentServiceError('Teacher not found', 404);
+        if (!subject.data) throw new SubjectAssignmentServiceError('Subject not found', 404);
+        if (!classRecord.data) throw new SubjectAssignmentServiceError('Class not found', 404);
+    }
+
     static async checkDuplicate(
         teacher_id: string,
         subject_id: string,
@@ -45,6 +65,7 @@ export class SubjectAssignmentService {
     static async createSubjectAssignment(input: CreateSubjectAssignmentInput) {
         const { teacher_id, subject_id, class_id, academic_year } = input;
 
+        await this.ensureReferencesExist(teacher_id, subject_id, class_id);
         await this.checkDuplicate(teacher_id, subject_id, class_id, academic_year);
 
         const supabase = await createClient();
@@ -101,6 +122,7 @@ export class SubjectAssignmentService {
             input.class_id ||
             input.academic_year
         ) {
+            await this.ensureReferencesExist(teacher_id, subject_id, class_id);
             await this.checkDuplicate(teacher_id, subject_id, class_id, academic_year, id);
         }
 
@@ -118,6 +140,9 @@ export class SubjectAssignmentService {
             .single();
 
         if (error) {
+            if (error.code === '23505') {
+                throw new SubjectAssignmentServiceError('This assignment already exists', 409);
+            }
             throw new SubjectAssignmentServiceError('Failed to update assignment', 500);
         }
 
@@ -131,6 +156,9 @@ export class SubjectAssignmentService {
         const { error } = await supabase.from('subject_assignments').delete().eq('id', id);
 
         if (error) {
+            if (error.code === 'P0001') {
+                throw new SubjectAssignmentServiceError(error.message, 409);
+            }
             throw new SubjectAssignmentServiceError('Failed to delete assignment', 500);
         }
 
@@ -154,11 +182,37 @@ export class SubjectAssignmentService {
         subject:subjects(id, name, code),
         class:classes(id, name, grade_level)
       `, { count: 'exact' })
+            .order('academic_year', { ascending: false })
             .order('created_at', { ascending: false });
 
         if (query.teacher_id) req = req.eq('teacher_id', query.teacher_id);
         if (query.class_id) req = req.eq('class_id', query.class_id);
         if (query.subject_id) req = req.eq('subject_id', query.subject_id);
+
+        if (query.search) {
+            const term = query.search.replace(/[,%_()]/g, '');
+            if (!term) {
+                return { data: [], page, pageSize: PAGE_SIZE, total: 0, totalPages: 1 };
+            }
+            const pattern = `%${term}%`;
+            const [teachers, subjects, classes] = await Promise.all([
+                supabase.from('teachers').select('id').or(`full_name.ilike.${pattern},teacher_id.ilike.${pattern}`),
+                supabase.from('subjects').select('id').or(`name.ilike.${pattern},code.ilike.${pattern}`),
+                supabase.from('classes').select('id').or(`name.ilike.${pattern},grade_level.ilike.${pattern}`),
+            ]);
+
+            if (teachers.error || subjects.error || classes.error) {
+                throw new SubjectAssignmentServiceError('Failed to search assignments', 500);
+            }
+
+            const filters = [
+                `academic_year.ilike.${pattern}`,
+                ...(teachers.data ?? []).map(({ id }) => `teacher_id.eq.${id}`),
+                ...(subjects.data ?? []).map(({ id }) => `subject_id.eq.${id}`),
+                ...(classes.data ?? []).map(({ id }) => `class_id.eq.${id}`),
+            ];
+            req = req.or(filters.join(','));
+        }
 
         const { data, error, count } = await req.range(from, to);
 

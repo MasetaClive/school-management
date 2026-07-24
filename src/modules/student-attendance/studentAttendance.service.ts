@@ -16,21 +16,39 @@ export class StudentAttendanceServiceError extends Error {
 const PAGE_SIZE = 20;
 
 export class StudentAttendanceService {
-    static async createAttendance(input: CreateStudentAttendanceInput) {
+    private static async ensureReferencesAreValid(studentId: string, classId: string, recordedBy: string | null | undefined) {
         const supabase = await createClient();
+        const [student, classRecord, recorder] = await Promise.all([
+            supabase.from('students').select('id, class_id').eq('id', studentId).maybeSingle(),
+            supabase.from('classes').select('id').eq('id', classId).maybeSingle(),
+            recordedBy ? supabase.from('teachers').select('id').eq('id', recordedBy).maybeSingle() : Promise.resolve({ data: null, error: null }),
+        ]);
 
-        // Check for unique constraint: (student_id, attendance_date)
-        const { data: existing, error: checkError } = await supabase
-            .from('student_attendance')
-            .select('id')
-            .eq('student_id', input.student_id)
-            .eq('attendance_date', input.attendance_date)
-            .maybeSingle();
-
-        if (checkError) throw new StudentAttendanceServiceError('Failed to validate attendance', 500);
-        if (existing) {
-            throw new StudentAttendanceServiceError('Attendance already recorded for this student on this date', 409);
+        if (student.error || classRecord.error || recorder.error) {
+            throw new StudentAttendanceServiceError('Failed to validate attendance references', 500);
         }
+        if (!student.data) throw new StudentAttendanceServiceError('Student not found', 404);
+        if (!classRecord.data) throw new StudentAttendanceServiceError('Class not found', 404);
+        if (recordedBy && !recorder.data) throw new StudentAttendanceServiceError('Recording teacher not found', 404);
+        if (student.data.class_id !== classId) {
+            throw new StudentAttendanceServiceError('Student is not assigned to the selected class', 409);
+        }
+    }
+
+    private static async ensureNoDuplicate(studentId: string, attendanceDate: string, excludeId?: string) {
+        const supabase = await createClient();
+        let request = supabase.from('student_attendance').select('id')
+            .eq('student_id', studentId).eq('attendance_date', attendanceDate);
+        if (excludeId) request = request.neq('id', excludeId);
+        const { data, error } = await request.maybeSingle();
+        if (error) throw new StudentAttendanceServiceError('Failed to validate attendance', 500);
+        if (data) throw new StudentAttendanceServiceError('Attendance already recorded for this student on this date', 409);
+    }
+
+    static async createAttendance(input: CreateStudentAttendanceInput) {
+        await this.ensureReferencesAreValid(input.student_id, input.class_id, input.recorded_by);
+        await this.ensureNoDuplicate(input.student_id, input.attendance_date);
+        const supabase = await createClient();
 
         const { data, error } = await supabase
             .from('student_attendance')
@@ -74,41 +92,33 @@ export class StudentAttendanceService {
     }
 
     static async updateAttendance(id: string, input: UpdateStudentAttendanceInput) {
-        const supabase = await createClient();
-
-        // Fetch existing logic to handle unique check if date changed
         const existingEntry = await this.getAttendanceById(id);
         const attendance_date = input.attendance_date ?? existingEntry.attendance_date;
-        const student_id = existingEntry.student_id;
-
-        if (input.attendance_date) {
-            const { data: conflict, error: checkError } = await supabase
-                .from('student_attendance')
-                .select('id')
-                .eq('student_id', student_id)
-                .eq('attendance_date', attendance_date)
-                .neq('id', id)
-                .maybeSingle();
-
-            if (checkError) throw new StudentAttendanceServiceError('Failed to validate attendance', 500);
-            if (conflict) {
-                throw new StudentAttendanceServiceError('Attendance already recorded for this student on this date', 409);
-            }
-        }
+        const student_id = input.student_id ?? existingEntry.student_id;
+        const class_id = input.class_id ?? existingEntry.class_id;
+        const recorded_by = input.recorded_by !== undefined ? input.recorded_by : existingEntry.recorded_by;
+        await this.ensureReferencesAreValid(student_id, class_id, recorded_by);
+        await this.ensureNoDuplicate(student_id, attendance_date, id);
+        const supabase = await createClient();
 
         const { data, error } = await supabase
             .from('student_attendance')
             .update({
+                student_id,
+                class_id,
                 attendance_date,
                 status: input.status ?? existingEntry.status,
                 remarks: input.remarks !== undefined ? input.remarks : existingEntry.remarks,
-                recorded_by: input.recorded_by !== undefined ? input.recorded_by : existingEntry.recorded_by,
+                recorded_by,
             })
             .eq('id', id)
             .select('*')
             .single();
 
         if (error) {
+            if (error.code === '23505' || error.code === 'P0001') {
+                throw new StudentAttendanceServiceError(error.message || 'Attendance already recorded for this student on this date', 409);
+            }
             throw new StudentAttendanceServiceError('Failed to update attendance', 500);
         }
 
@@ -116,6 +126,7 @@ export class StudentAttendanceService {
     }
 
     static async deleteAttendance(id: string) {
+        await this.getAttendanceById(id);
         const supabase = await createClient();
         const { error } = await supabase.from('student_attendance').delete().eq('id', id);
 
@@ -143,11 +154,30 @@ export class StudentAttendanceService {
         student:students(full_name, student_id),
         class:classes(name)
       `, { count: 'exact' })
-            .order('attendance_date', { ascending: false });
+            .order('attendance_date', { ascending: false })
+            .order('created_at', { ascending: false });
 
         if (query.student_id) req = req.eq('student_id', query.student_id);
         if (query.class_id) req = req.eq('class_id', query.class_id);
         if (query.date) req = req.eq('attendance_date', query.date);
+        if (query.status) req = req.eq('status', query.status);
+
+        if (query.search) {
+            const term = query.search.replace(/[,%_()]/g, '');
+            if (!term) return { data: [], page, pageSize: PAGE_SIZE, total: 0, totalPages: 1 };
+            const pattern = `%${term}%`;
+            const [students, classes] = await Promise.all([
+                supabase.from('students').select('id').or(`full_name.ilike.${pattern},student_id.ilike.${pattern}`),
+                supabase.from('classes').select('id').or(`name.ilike.${pattern},grade_level.ilike.${pattern}`),
+            ]);
+            if (students.error || classes.error) throw new StudentAttendanceServiceError('Failed to search attendance history', 500);
+            const filters = [
+                ...(students.data ?? []).map(({ id }) => `student_id.eq.${id}`),
+                ...(classes.data ?? []).map(({ id }) => `class_id.eq.${id}`),
+            ];
+            if (!filters.length) return { data: [], page, pageSize: PAGE_SIZE, total: 0, totalPages: 1 };
+            req = req.or(filters.join(','));
+        }
 
         const { data, error, count } = await req.range(from, to);
 

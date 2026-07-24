@@ -3,20 +3,20 @@ import { z } from 'zod';
 export const createResultSchema = z.object({
     exam_id: z.string().uuid('Invalid exam ID'),
     student_id: z.string().uuid('Invalid student ID'),
-    marks_obtained: z.number().min(0, 'Marks obtained must be at least 0'),
-    grade: z.string().optional().nullable(),
-    remarks: z.string().optional().nullable(),
+    marks_obtained: z.number().min(0, 'Marks obtained must be at least 0').max(1000).multipleOf(0.01),
+    remarks: z.string().trim().max(2000).optional().nullable(),
 });
 
 export const updateResultSchema = z
     .object({
-        marks_obtained: z.number().min(0).optional(),
-        grade: z.string().optional().nullable(),
-        remarks: z.string().optional().nullable(),
+        marks_obtained: z.number().min(0).max(1000).multipleOf(0.01).optional(),
+        remarks: z.string().trim().max(2000).optional().nullable(),
     })
     .refine((data) => Object.values(data).some((v) => v !== undefined), {
         message: 'At least one field must be provided for update',
     });
+
+export const resultIdParamSchema = z.string().uuid('Invalid result ID');
 
 export const listResultsQuerySchema = z.object({
     page: z
@@ -28,6 +28,7 @@ export const listResultsQuerySchema = z.object({
         .optional(),
     student_id: z.string().uuid().optional(),
     exam_id: z.string().uuid().optional(),
+    search: z.string().trim().min(1).max(100).optional(),
 });
 
 export type CreateResultInput = z.infer<typeof createResultSchema>;

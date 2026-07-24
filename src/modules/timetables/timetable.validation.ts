@@ -5,7 +5,7 @@ export const createTimetableSchema = z.object({
     subject_id: z.string().uuid('Invalid subject ID'),
     teacher_id: z.string().uuid('Invalid teacher ID'),
     time_slot_id: z.string().uuid('Invalid time slot ID'),
-    academic_year: z.string().min(1, 'Academic year is required'),
+    academic_year: z.string().trim().min(1, 'Academic year is required'),
 });
 
 export const updateTimetableSchema = z
@@ -14,11 +14,13 @@ export const updateTimetableSchema = z
         subject_id: z.string().uuid().optional(),
         teacher_id: z.string().uuid().optional(),
         time_slot_id: z.string().uuid().optional(),
-        academic_year: z.string().min(1).optional(),
+        academic_year: z.string().trim().min(1).optional(),
     })
     .refine((data) => Object.values(data).some((v) => v !== undefined), {
         message: 'At least one field must be provided for update',
     });
+
+export const timetableIdParamSchema = z.string().uuid('Invalid timetable entry ID');
 
 export const listTimetablesQuerySchema = z.object({
     page: z
@@ -32,6 +34,9 @@ export const listTimetablesQuerySchema = z.object({
     teacher_id: z.string().uuid().optional(),
     subject_id: z.string().uuid().optional(),
     time_slot_id: z.string().uuid().optional(),
+    academic_year: z.string().trim().min(1).optional(),
+    day_of_week: z.coerce.number().int().min(0).max(6).optional(),
+    search: z.string().trim().min(1).max(100).optional(),
 });
 
 export type CreateTimetableInput = z.infer<typeof createTimetableSchema>;

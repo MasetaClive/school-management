@@ -4,13 +4,19 @@ export const createClassTeacherSchema = z.object({
     class_id: z.string().uuid('Invalid class ID'),
     teacher_id: z.string().uuid('Invalid teacher ID'),
     is_homeroom: z.boolean().optional().default(false),
-    academic_year: z.string().min(1, 'Academic year is required'),
+    academic_year: z.string().trim().min(1, 'Academic year is required'),
 });
 
 export const updateClassTeacherSchema = z.object({
+    class_id: z.string().uuid('Invalid class ID').optional(),
+    teacher_id: z.string().uuid('Invalid teacher ID').optional(),
     is_homeroom: z.boolean().optional(),
-    academic_year: z.string().min(1, 'Academic year is required').optional(),
+    academic_year: z.string().trim().min(1, 'Academic year is required').optional(),
+}).refine((data) => Object.values(data).some((value) => value !== undefined), {
+    message: 'At least one field must be provided for update',
 });
+
+export const classTeacherIdParamSchema = z.string().uuid('Invalid class teacher assignment ID');
 
 export const listClassTeachersQuerySchema = z.object({
     page: z
@@ -22,6 +28,8 @@ export const listClassTeachersQuerySchema = z.object({
         .optional(),
     class_id: z.string().uuid().optional(),
     teacher_id: z.string().uuid().optional(),
+    academic_year: z.string().trim().min(1).optional(),
+    search: z.string().trim().min(1).max(100).optional(),
 });
 
 export type CreateClassTeacherInput = z.infer<typeof createClassTeacherSchema>;

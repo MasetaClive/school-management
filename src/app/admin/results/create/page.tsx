@@ -18,7 +18,6 @@ export default function CreateResultPage() {
         exam_id: '',
         student_id: '',
         marks_obtained: 0,
-        grade: '',
         remarks: '',
     });
 
@@ -55,7 +54,6 @@ export default function CreateResultPage() {
         const payload = {
             ...form,
             marks_obtained: Number(form.marks_obtained),
-            grade: form.grade || null,
             remarks: form.remarks || null,
         };
 
@@ -125,15 +123,7 @@ export default function CreateResultPage() {
                             min="0"
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Grade</label>
-                        <input
-                            className="w-full border rounded-md px-3 py-2 text-sm bg-background"
-                            value={form.grade}
-                            onChange={(e) => setForm(f => ({ ...f, grade: e.target.value }))}
-                            placeholder="e.g. A+"
-                        />
-                    </div>
+                    <p className="self-end text-sm text-muted-foreground">Grade and pass/fail status are calculated automatically.</p>
                 </div>
 
                 <div>

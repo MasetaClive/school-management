@@ -34,9 +34,9 @@ export default function AdminRolloverPage() {
             const cData = await cRes.json();
 
             setStudents(Array.isArray(sData) ? sData : []);
-            setClasses(Array.isArray(cData) ? cData : []);
+            setClasses(Array.isArray(cData) ? cData : (cData.data ?? []));
 
-            if (!Array.isArray(sData) || !Array.isArray(cData)) {
+            if (!Array.isArray(sData) || (!Array.isArray(cData) && !Array.isArray(cData.data))) {
                 console.error('API Error: Expected arrays but got:', { sData, cData });
             }
         } catch (e) {
@@ -111,7 +111,7 @@ export default function AdminRolloverPage() {
                                 </td>
                                 <td className="px-6 py-4">
                                     <span className="px-2 py-1 bg-muted rounded text-xs font-medium">
-                                        {student.class.name} ({student.class.academic_year})
+                                        {student.class ? `${student.class.name} (${student.class.academic_year})` : 'Not assigned'}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4">

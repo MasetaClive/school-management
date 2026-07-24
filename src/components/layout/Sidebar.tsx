@@ -53,6 +53,9 @@ export default function Sidebar({ schoolName }: { schoolName?: string }) {
             title: 'Academics',
             items: [
                 { label: 'Subjects', href: '/admin/subjects', icon: <span className="text-lg">📚</span> },
+                { label: 'Subject Assignments', href: '/admin/subject-assignments', icon: <span className="text-lg">🧩</span> },
+                { label: 'Academic Years', href: '/admin/academic-years', icon: <span className="text-lg">📅</span> },
+                { label: 'Time Slots', href: '/admin/time-slots', icon: <span className="text-lg">⏰</span> },
                 { label: 'Timetables', href: '/admin/timetables', icon: <span className="text-lg">🗓️</span> },
                 { label: 'Exams', href: '/admin/exams', icon: <span className="text-lg">📝</span> },
                 { label: 'Results', href: '/admin/results', icon: <span className="text-lg">🏆</span> },

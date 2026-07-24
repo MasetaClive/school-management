@@ -4,6 +4,7 @@ import {
     createSubjectSchema,
     updateSubjectSchema,
     listSubjectsQuerySchema,
+    subjectIdParamSchema,
 } from './subject.validation';
 import { SubjectService, SubjectServiceError } from './subject.service';
 
@@ -72,7 +73,7 @@ export const SubjectController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const subject = await SubjectService.getSubjectById(id);
+            const subject = await SubjectService.getSubjectById(subjectIdParamSchema.parse(id));
             return NextResponse.json(subject, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -85,7 +86,7 @@ export const SubjectController = {
             const body = await req.json();
             const input = updateSubjectSchema.parse(body);
 
-            const subject = await SubjectService.updateSubject(id, input);
+            const subject = await SubjectService.updateSubject(subjectIdParamSchema.parse(id), input);
             return NextResponse.json(subject, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -95,7 +96,7 @@ export const SubjectController = {
     async delete(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const result = await SubjectService.deleteSubject(id);
+            const result = await SubjectService.deleteSubject(subjectIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);

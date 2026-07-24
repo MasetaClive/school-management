@@ -33,6 +33,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirect);
   }
 
+  const forcePasswordChange = user.user_metadata?.force_password_change === true;
+  if (forcePasswordChange && pathname !== '/change-password' && !pathname.startsWith('/api/auth/password')) {
+    return NextResponse.redirect(new URL('/change-password', request.url));
+  }
+
+  if (!forcePasswordChange && pathname === '/change-password') {
+    const redirect = getRedirectForRole(role);
+    if (redirect) return NextResponse.redirect(new URL(redirect, request.url));
+  }
+
   const isInProtectedNamespace = PROTECTED_NAMESPACES.some((ns) =>
     pathname.startsWith(ns)
   );

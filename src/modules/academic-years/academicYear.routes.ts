@@ -12,3 +12,11 @@ export async function createAcademicYearRoute(req: NextRequest) {
 export async function updateAcademicYearRoute(req: NextRequest, id: string) {
   return AcademicYearController.update(req, id);
 }
+
+export async function getAcademicYearRoute(req: NextRequest, id: string) {
+  return AcademicYearController.getOne(req, id);
+}
+
+export async function deleteAcademicYearRoute(req: NextRequest, id: string) {
+  return AcademicYearController.delete(req, id);
+}

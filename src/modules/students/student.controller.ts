@@ -4,8 +4,10 @@ import {
   createStudentSchema,
   updateStudentSchema,
   listStudentsQuerySchema,
+  studentIdParamSchema,
 } from './student.validation';
 import { StudentService, StudentServiceError } from './student.service';
+import { UserServiceError } from '@/modules/users/user.service';
 
 class ApiError extends Error {
   status: number;
@@ -24,7 +26,7 @@ async function ensureAdmin() {
 }
 
 function toJsonError(e: unknown) {
-  if (e instanceof ApiError || e instanceof StudentServiceError) {
+  if (e instanceof ApiError || e instanceof StudentServiceError || e instanceof UserServiceError) {
     return NextResponse.json({ error: e.message }, { status: e.status });
   }
   if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
@@ -74,7 +76,7 @@ export const StudentController = {
   async getOne(req: NextRequest, id: string) {
     try {
       await ensureAdmin();
-      const student = await StudentService.getStudentById(id);
+      const student = await StudentService.getStudentById(studentIdParamSchema.parse(id));
       return NextResponse.json(student, { status: 200 });
     } catch (e) {
       return toJsonError(e);
@@ -87,7 +89,7 @@ export const StudentController = {
       const body = await req.json();
       const input = updateStudentSchema.parse(body);
 
-      const student = await StudentService.updateStudent(id, input);
+      const student = await StudentService.updateStudent(studentIdParamSchema.parse(id), input);
       return NextResponse.json(student, { status: 200 });
     } catch (e) {
       return toJsonError(e);
@@ -98,11 +100,10 @@ export const StudentController = {
     try {
       await ensureAdmin();
 
-      const result = await StudentService.deleteStudent(id);
+      const result = await StudentService.deleteStudent(studentIdParamSchema.parse(id));
       return NextResponse.json(result, { status: 200 });
     } catch (e) {
       return toJsonError(e);
     }
   },
 };
-

@@ -1,4 +1,5 @@
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { UserService } from '@/modules/users/user.service';
 import type {
     CreateParentInput,
     UpdateParentInput,
@@ -29,17 +30,27 @@ export class ParentService {
     }
 
     static async createParent(input: CreateParentInput) {
-        const { parent_id, full_name, phone, email: inputEmail, address, occupation, create_account, password } = input;
+        const { parent_id, full_name, phone, email: inputEmail, address, occupation, create_account, password_mode: _passwordMode, password } = input;
 
         await this.ensureParentIdUnique(parent_id);
 
         const supabase = await createClient();
-        const adminSupabase = await createAdminClient();
+        let account = null;
 
-        // 1. Create Parent Profile
+        if (create_account) {
+            account = await UserService.provisionAccount({
+                role: 'parent',
+                username: inputEmail || parent_id,
+                fullName: full_name,
+                email: inputEmail || null,
+                password,
+            });
+        }
+
         const { data: parent, error: parentError } = await supabase
             .from('parents')
             .insert({
+                user_id: account?.userId ?? null,
                 parent_id,
                 full_name,
                 phone,
@@ -51,54 +62,14 @@ export class ParentService {
             .single();
 
         if (parentError) {
+            if (account) await UserService.rollbackProvisionedAccount(account.userId);
             if (parentError.code === '23505') {
                 throw new ParentServiceError('Parent ID already exists', 400);
             }
             throw new ParentServiceError(`Failed to create parent: ${parentError.message}`, 500);
         }
 
-        // 2. Automated Account Creation
-        if (create_account && password) {
-            const email = inputEmail || `${parent_id.toLowerCase()}@school.local`;
-
-            // A. Create Auth User
-            const { data: authUser, error: authError } = await adminSupabase.auth.admin.createUser({
-                email,
-                password,
-                email_confirm: true,
-                user_metadata: { full_name, role: 'parent' }
-            });
-
-            if (authError) {
-                throw new ParentServiceError(`Parent created, but failed to create login account: ${authError.message}`, 500);
-            }
-
-            const userId = authUser.user.id;
-
-            // B. Create Public User Record
-            const { error: userError } = await adminSupabase
-                .from('users')
-                .insert({
-                    id: userId,
-                    email,
-                    full_name,
-                    role: 'parent',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                });
-
-            if (userError) {
-                throw new ParentServiceError(`Parent and Auth created, but failed to sync public user: ${userError.message}`, 500);
-            }
-
-            // C. Link User ID back to Parent Profile
-            await adminSupabase
-                .from('parents')
-                .update({ user_id: userId })
-                .eq('id', parent.id);
-        }
-
-        return parent;
+        return { profile: parent, account };
     }
 
     static async getParentById(id: string) {
@@ -138,18 +109,12 @@ export class ParentService {
         return data;
     }
 
-    static async hasLinkedStudents(parent_id_text: string) {
+    static async hasLinkedStudents(parentId: string) {
         const supabase = await createClient();
         const { count, error } = await supabase
             .from('students')
             .select('id', { count: 'exact', head: true })
-            .eq('parent_id', parent_id_text); // Wait, in the schema parent_id in students is UUID or link?
-        // Re-checking student.validation.ts: parent_id: z.string().uuid().optional()
-        // Re-checking goal: "Query students where parent_id = this parent id"
-        // In Supabase, usually relations are by UUID. Let's check table columns.
-
-        // Actually, the goal says: "Query students where parent_id = this parent id"
-        // Usually "parent id" refers to the PK id.
+            .eq('parent_id', parentId);
 
         if (error) {
             throw new ParentServiceError('Failed to check linked students', 500);
@@ -162,18 +127,7 @@ export class ParentService {
 
         const supabase = await createClient();
 
-        // The requirement says: "Query students where parent_id = this parent id"
-        // In students table, parent_id is likely a foreign key to parents.id (UUID).
-        const { count, error: countError } = await supabase
-            .from('students')
-            .select('id', { count: 'exact', head: true })
-            .eq('parent_id', id);
-
-        if (countError) {
-            throw new ParentServiceError('Failed to check linked students', 500);
-        }
-
-        if ((count ?? 0) > 0) {
+        if (await this.hasLinkedStudents(id)) {
             throw new ParentServiceError('Cannot delete parent with linked students', 409);
         }
 
@@ -181,6 +135,10 @@ export class ParentService {
 
         if (error) {
             throw new ParentServiceError('Failed to delete parent', 500);
+        }
+
+        if (parent.user_id) {
+            await UserService.rollbackProvisionedAccount(parent.user_id);
         }
 
         return { success: true };
@@ -199,7 +157,9 @@ export class ParentService {
             .order('created_at', { ascending: false });
 
         if (query.search) {
-            req = req.ilike('full_name', `%${query.search}%`);
+            req = req.or(
+                `full_name.ilike.%${query.search}%,parent_id.ilike.%${query.search}%,email.ilike.%${query.search}%,phone.ilike.%${query.search}%`,
+            );
         }
 
         const { data, error, count } = await req.range(from, to);
@@ -215,5 +175,27 @@ export class ParentService {
             total: count ?? 0,
             totalPages: count ? Math.ceil(count / PAGE_SIZE) : 1,
         };
+    }
+
+    static async getDashboardData(userId: string) {
+        const supabase = await createClient();
+        const { data: parent, error: parentError } = await supabase
+            .from('parents')
+            .select('id, parent_id, full_name, email, phone')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (parentError) throw new ParentServiceError('Failed to fetch parent profile', 500);
+        if (!parent) throw new ParentServiceError('Parent profile not found', 404);
+
+        const { data: children, error: childrenError } = await supabase
+            .from('students')
+            .select('id, student_id, full_name')
+            .eq('parent_id', parent.id)
+            .order('full_name');
+
+        if (childrenError) throw new ParentServiceError('Failed to fetch linked children', 500);
+
+        return { parent, children: children ?? [] };
     }
 }

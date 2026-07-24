@@ -4,6 +4,7 @@ import {
     createTimetableSchema,
     updateTimetableSchema,
     listTimetablesQuerySchema,
+    timetableIdParamSchema,
 } from './timetable.validation';
 import { TimetableService, TimetableServiceError } from './timetable.service';
 
@@ -30,7 +31,6 @@ function toJsonError(e: unknown) {
     if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
         return NextResponse.json({ error: (e as any).message }, { status: 400 });
     }
-    // eslint-disable-next-line no-console
     console.error('[timetables] unexpected error', e);
     return NextResponse.json(
         { error: 'Internal server error' },
@@ -50,6 +50,9 @@ export const TimetableController = {
                 teacher_id: url.searchParams.get('teacher_id') ?? undefined,
                 subject_id: url.searchParams.get('subject_id') ?? undefined,
                 time_slot_id: url.searchParams.get('time_slot_id') ?? undefined,
+                academic_year: url.searchParams.get('academic_year') ?? undefined,
+                day_of_week: url.searchParams.get('day_of_week') ?? undefined,
+                search: url.searchParams.get('search') ?? undefined,
             });
 
             const result = await TimetableService.listTimetables(query);
@@ -75,7 +78,7 @@ export const TimetableController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const entry = await TimetableService.getTimetableById(id);
+            const entry = await TimetableService.getTimetableById(timetableIdParamSchema.parse(id));
             return NextResponse.json(entry, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -85,10 +88,11 @@ export const TimetableController = {
     async update(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
+            const entryId = timetableIdParamSchema.parse(id);
             const body = await req.json();
             const input = updateTimetableSchema.parse(body);
 
-            const entry = await TimetableService.updateTimetableEntry(id, input);
+            const entry = await TimetableService.updateTimetableEntry(entryId, input);
             return NextResponse.json(entry, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -98,7 +102,7 @@ export const TimetableController = {
     async delete(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const result = await TimetableService.deleteTimetableEntry(id);
+            const result = await TimetableService.deleteTimetableEntry(timetableIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);

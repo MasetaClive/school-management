@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
-type SelectOption = { id: string; name?: string; full_name?: string; code?: string; teacher_id?: string; start_time?: string; end_time?: string; day_of_week?: number };
+type SelectOption = { id: string; name?: string; full_name?: string; code?: string; teacher_id?: string; start_time?: string; end_time?: string; day_of_week?: number; year?: string; grade_level?: string };
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -20,6 +20,7 @@ export default function EditTimetablePage() {
     const [subjects, setSubjects] = useState<SelectOption[]>([]);
     const [teachers, setTeachers] = useState<SelectOption[]>([]);
     const [slots, setSlots] = useState<SelectOption[]>([]);
+    const [academicYears, setAcademicYears] = useState<SelectOption[]>([]);
 
     const [form, setForm] = useState({
         class_id: '',
@@ -33,28 +34,32 @@ export default function EditTimetablePage() {
         async function loadData() {
             try {
                 setLoading(true);
-                const [resE, resC, resS, resT, resSlots] = await Promise.all([
+                const [resE, resC, resS, resT, resSlots, resYears] = await Promise.all([
                     fetch(`/api/admin/timetables/${id}`),
                     fetch('/api/admin/classes'),
                     fetch('/api/admin/subjects'),
                     fetch('/api/admin/teachers'),
                     fetch('/api/admin/timetables/slots'),
+                    fetch('/api/admin/academic-years'),
                 ]);
 
-                const [dataE, dataC, dataS, dataT, dataSlots] = await Promise.all([
+                const [dataE, dataC, dataS, dataT, dataSlots, dataYears] = await Promise.all([
                     resE.json(),
                     resC.json(),
                     resS.json(),
                     resT.json(),
                     resSlots.json(),
+                    resYears.json(),
                 ]);
 
                 if (!resE.ok) throw new Error(dataE.error ?? 'Failed to load entry');
+                if (!resC.ok || !resS.ok || !resT.ok || !resSlots.ok || !resYears.ok) throw new Error('Failed to load selection options');
 
                 setClasses(dataC.data || []);
                 setSubjects(dataS.data || []);
                 setTeachers(dataT.data || []);
                 setSlots(dataSlots.data || []);
+                setAcademicYears(dataYears.data || []);
 
                 setForm({
                     class_id: dataE.class_id,
@@ -114,7 +119,7 @@ export default function EditTimetablePage() {
                         required
                     >
                         <option value="">Select Class</option>
-                        {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {classes.map(c => <option key={c.id} value={c.id}>{c.name} {c.grade_level ? `(${c.grade_level})` : ''}</option>)}
                     </select>
                 </div>
 
@@ -140,7 +145,7 @@ export default function EditTimetablePage() {
                         required
                     >
                         <option value="">Select Teacher</option>
-                        {teachers.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
+                        {teachers.map(t => <option key={t.id} value={t.id}>{t.full_name} {t.teacher_id ? `(${t.teacher_id})` : ''}</option>)}
                     </select>
                 </div>
 
@@ -163,12 +168,15 @@ export default function EditTimetablePage() {
 
                 <div>
                     <label className="block text-sm font-medium mb-1">Academic Year *</label>
-                    <input
-                        className="w-full border rounded-md px-3 py-2 text-sm"
+                    <select
+                        className="w-full border rounded-md px-3 py-2 text-sm bg-background"
                         value={form.academic_year}
                         onChange={(e) => setForm(f => ({ ...f, academic_year: e.target.value }))}
                         required
-                    />
+                    >
+                        <option value="">Select academic year</option>
+                        {academicYears.map((year) => <option key={year.id} value={year.year}>{year.year}</option>)}
+                    </select>
                 </div>
 
                 <button

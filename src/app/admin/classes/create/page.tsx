@@ -11,7 +11,7 @@ export default function CreateClassPage() {
     const [form, setForm] = useState({
         name: '',
         grade_level: '',
-        academic_year: new Date().getFullYear().toString() + '-' + (new Date().getFullYear() + 1).toString(),
+        academic_year: new Date().getFullYear().toString(),
     });
 
     async function handleSubmit(e: React.FormEvent) {
@@ -64,7 +64,7 @@ export default function CreateClassPage() {
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">
-                            Grade Level *
+                            Form Level *
                         </label>
                         <input
                             type="number"
@@ -89,7 +89,7 @@ export default function CreateClassPage() {
                         onChange={(e) =>
                             setForm((f) => ({ ...f, academic_year: e.target.value }))
                         }
-                        placeholder="e.g. 2024-2025"
+                        placeholder="e.g. 2026"
                         required
                     />
                 </div>

@@ -112,10 +112,10 @@ export default function EditStudentPage() {
         gender: form.gender || undefined,
         class_id: form.class_id || undefined,
         parent_id: form.parent_id || undefined,
-        guardian_name: form.guardian_name || undefined,
-        guardian_phone: form.guardian_phone || undefined,
-        guardian_email: form.guardian_email || undefined,
-        medical_info: form.medical_info ? JSON.parse(form.medical_info) : undefined,
+        guardian_name: form.guardian_name,
+        guardian_phone: form.guardian_phone,
+        guardian_email: form.guardian_email,
+        medical_info: form.medical_info ? JSON.parse(form.medical_info) : {},
         admission_date: form.admission_date || undefined,
         academic_year: form.academic_year || undefined,
       };
@@ -290,6 +290,33 @@ export default function EditStudentPage() {
                 onChange={(e) => setForm({ ...form, guardian_name: e.target.value })}
               />
             </div>
+            <div>
+              <label className={labelClasses}>Guardian Phone</label>
+              <input
+                type="tel"
+                className={inputClasses}
+                value={form.guardian_phone}
+                onChange={(e) => setForm({ ...form, guardian_phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelClasses}>Guardian Email</label>
+              <input
+                type="email"
+                className={inputClasses}
+                value={form.guardian_email}
+                onChange={(e) => setForm({ ...form, guardian_email: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="mt-8">
+            <label className={labelClasses}>Medical Information</label>
+            <textarea
+              rows={4}
+              className={inputClasses}
+              value={form.medical_info}
+              onChange={(e) => setForm({ ...form, medical_info: e.target.value })}
+            />
           </div>
         </div>
 

@@ -16,22 +16,23 @@ export class SubjectServiceError extends Error {
 const PAGE_SIZE = 20;
 
 export class SubjectService {
-    static async ensureCodeUnique(code: string) {
+    static async ensureSubjectUnique(name: string, code: string, excludeId?: string) {
         const supabase = await createClient();
-        const { data, error } = await supabase
-            .from('subjects')
-            .select('id')
-            .eq('code', code)
-            .maybeSingle();
-
-        if (error) throw new SubjectServiceError('Failed to validate code uniqueness', 500);
-        if (data) throw new SubjectServiceError('Subject code already exists', 400);
+        let codeQuery = supabase.from('subjects').select('id').eq('code', code);
+        let nameQuery = supabase.from('subjects').select('id').ilike('name', name);
+        if (excludeId) { codeQuery = codeQuery.neq('id', excludeId); nameQuery = nameQuery.neq('id', excludeId); }
+        const [codeResult, nameResult] = await Promise.all([codeQuery.maybeSingle(), nameQuery.maybeSingle()]);
+        if (codeResult.error || nameResult.error) throw new SubjectServiceError('Failed to validate subject uniqueness', 500);
+        if (codeResult.data) throw new SubjectServiceError('Subject code already exists', 409);
+        if (nameResult.data) throw new SubjectServiceError('Subject name already exists', 409);
     }
 
     static async createSubject(input: CreateSubjectInput) {
-        const { name, code, description } = input;
+        const name = input.name.trim();
+        const code = input.code.trim().toUpperCase();
+        const { description } = input;
 
-        await this.ensureCodeUnique(code);
+        await this.ensureSubjectUnique(name, code);
 
         const supabase = await createClient();
         const { data, error } = await supabase
@@ -45,9 +46,7 @@ export class SubjectService {
             .single();
 
         if (error) {
-            if (error.code === '23505') {
-                throw new SubjectServiceError('Subject code already exists', 400);
-            }
+            if (error.code === '23505') throw new SubjectServiceError('Subject name or code already exists', 409);
             throw new SubjectServiceError('Failed to create subject', 500);
         }
 
@@ -68,20 +67,25 @@ export class SubjectService {
     }
 
     static async updateSubject(id: string, input: UpdateSubjectInput) {
-        await this.getSubjectById(id);
+        const existing = await this.getSubjectById(id);
+        const name = input.name?.trim() ?? existing.name;
+        const code = input.code?.trim().toUpperCase() ?? existing.code;
+        await this.ensureSubjectUnique(name, code, id);
 
         const supabase = await createClient();
         const { data, error } = await supabase
             .from('subjects')
             .update({
-                name: input.name,
-                description: input.description,
+                name,
+                code,
+                description: input.description !== undefined ? (input.description || null) : existing.description,
             })
             .eq('id', id)
             .select('*')
             .single();
 
         if (error) {
+            if (error.code === '23505') throw new SubjectServiceError('Subject name or code already exists', 409);
             throw new SubjectServiceError('Failed to update subject', 500);
         }
 
@@ -93,14 +97,21 @@ export class SubjectService {
 
         const supabase = await createClient();
 
-        // Preparation for conflict detection in future modules
-        // e.g. check if subject is used in assignments, timetable, etc.
+        const checks = await Promise.all([
+            supabase.from('subject_assignments').select('id', { count: 'exact', head: true }).eq('subject_id', id),
+            supabase.from('timetable_entries').select('id', { count: 'exact', head: true }).eq('subject_id', id),
+            supabase.from('homework').select('id', { count: 'exact', head: true }).eq('subject_id', id),
+            supabase.from('exams').select('id', { count: 'exact', head: true }).eq('subject_id', id),
+        ]);
+        if (checks.some((check) => check.error)) throw new SubjectServiceError('Failed to check subject dependencies', 500);
+        if (checks.some((check) => (check.count ?? 0) > 0)) throw new SubjectServiceError('Cannot delete subject with dependent records.', 409);
         const { error } = await supabase.from('subjects').delete().eq('id', id);
 
         if (error) {
             if (error.code === '23503') {
-                throw new SubjectServiceError('Cannot delete subject that is being used', 409);
+                throw new SubjectServiceError('Cannot delete subject with dependent records.', 409);
             }
+            if (error.code === 'P0001') throw new SubjectServiceError('Cannot delete subject with dependent records.', 409);
             throw new SubjectServiceError('Failed to delete subject', 500);
         }
 
@@ -117,7 +128,8 @@ export class SubjectService {
         let req = supabase
             .from('subjects')
             .select('*', { count: 'exact' })
-            .order('created_at', { ascending: false });
+            .order('code', { ascending: true })
+            .order('name', { ascending: true });
 
         if (query.search) {
             req = req.or(`name.ilike.%${query.search}%,code.ilike.%${query.search}%`);

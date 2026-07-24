@@ -52,9 +52,19 @@ export default function DashboardHeader({ title, role }: DashboardHeaderProps) {
 
             <div className="flex items-center gap-4">
                 <NotificationBell />
-                <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-black text-primary uppercase">
-                    {role[0]}
-                </div>
+                {role === 'teacher' ? (
+                    <Link 
+                        href="/teacher/profile" 
+                        className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-black text-primary uppercase hover:bg-primary hover:text-white transition-colors"
+                        title="View Profile"
+                    >
+                        T
+                    </Link>
+                ) : (
+                    <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-black text-primary uppercase">
+                        {role[0]}
+                    </div>
+                )}
             </div>
         </header>
     );

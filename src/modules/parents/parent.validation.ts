@@ -8,7 +8,12 @@ export const createParentSchema = z.object({
   address: z.string().optional(),
   occupation: z.string().optional(),
   create_account: z.boolean().optional(),
+  password_mode: z.enum(['auto', 'manual']).default('auto'),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+}).superRefine((data, ctx) => {
+  if (data.create_account && data.password_mode === 'manual' && !data.password) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: 'Password is required when manual password mode is selected' });
+  }
 });
 
 export const updateParentSchema = z
@@ -33,6 +38,8 @@ export const listParentsQuerySchema = z.object({
     .optional(),
   search: z.string().optional(),
 });
+
+export const parentIdParamSchema = z.string().uuid('Invalid parent ID');
 
 export type CreateParentInput = z.infer<typeof createParentSchema>;
 export type UpdateParentInput = z.infer<typeof updateParentSchema>;

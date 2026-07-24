@@ -3,6 +3,8 @@ import { getCurrentUser, getUserRole } from '@/lib/auth';
 import {
   createAcademicYearSchema,
   updateAcademicYearSchema,
+  listAcademicYearsQuerySchema,
+  academicYearIdParamSchema,
 } from './academicYear.validation';
 import { AcademicYearService, AcademicYearServiceError } from './academicYear.service';
 
@@ -41,8 +43,9 @@ export const AcademicYearController = {
   async list(req: NextRequest) {
     try {
       await ensureAdmin();
-      const result = await AcademicYearService.getAcademicYears();
-      return NextResponse.json({ data: result }, { status: 200 });
+      const url = new URL(req.url);
+      const result = await AcademicYearService.getAcademicYears(listAcademicYearsQuerySchema.parse({ page: url.searchParams.get('page') ?? undefined, search: url.searchParams.get('search') ?? undefined }));
+      return NextResponse.json(result, { status: 200 });
     } catch (e) {
       return toJsonError(e);
     }
@@ -66,19 +69,34 @@ export const AcademicYearController = {
       await ensureAdmin();
       const body = await req.json();
       const input = updateAcademicYearSchema.parse(body);
+      const academicYearId = academicYearIdParamSchema.parse(id);
 
       let result;
       if (input.is_active !== undefined && input.is_active === true) {
-        result = await AcademicYearService.setActiveYear(id);
+        result = await AcademicYearService.setActiveYear(academicYearId);
       } else if (input.is_closed !== undefined && input.is_closed === true) {
-        result = await AcademicYearService.closeAcademicYear(id);
+        result = await AcademicYearService.closeAcademicYear(academicYearId);
       } else {
-        throw new ApiError('Invalid update requested', 400);
+        result = await AcademicYearService.updateAcademicYear(academicYearId, input);
       }
       
       return NextResponse.json({ data: result }, { status: 200 });
     } catch (e) {
       return toJsonError(e);
     }
+  },
+
+  async getOne(_req: NextRequest, id: string) {
+    try {
+      await ensureAdmin();
+      return NextResponse.json({ data: await AcademicYearService.getAcademicYearById(academicYearIdParamSchema.parse(id)) });
+    } catch (e) { return toJsonError(e); }
+  },
+
+  async delete(_req: NextRequest, id: string) {
+    try {
+      await ensureAdmin();
+      return NextResponse.json(await AcademicYearService.deleteAcademicYear(academicYearIdParamSchema.parse(id)));
+    } catch (e) { return toJsonError(e); }
   },
 };

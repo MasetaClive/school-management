@@ -4,6 +4,7 @@ import {
     createTimeSlotSchema,
     updateTimeSlotSchema,
     listTimeSlotsQuerySchema,
+    timeSlotIdParamSchema,
 } from './timeSlot.validation';
 import { TimeSlotService, TimeSlotServiceError } from './timeSlot.service';
 
@@ -46,6 +47,7 @@ export const TimeSlotController = {
             const url = new URL(req.url);
             const query = listTimeSlotsQuerySchema.parse({
                 page: url.searchParams.get('page') ?? undefined,
+                search: url.searchParams.get('search') ?? undefined,
             });
 
             const result = await TimeSlotService.listTimeSlots(query);
@@ -71,7 +73,7 @@ export const TimeSlotController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const slot = await TimeSlotService.getTimeSlotById(id);
+            const slot = await TimeSlotService.getTimeSlotById(timeSlotIdParamSchema.parse(id));
             return NextResponse.json(slot, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -84,7 +86,7 @@ export const TimeSlotController = {
             const body = await req.json();
             const input = updateTimeSlotSchema.parse(body);
 
-            const slot = await TimeSlotService.updateTimeSlot(id, input);
+            const slot = await TimeSlotService.updateTimeSlot(timeSlotIdParamSchema.parse(id), input);
             return NextResponse.json(slot, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -94,7 +96,7 @@ export const TimeSlotController = {
     async delete(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const result = await TimeSlotService.deleteTimeSlot(id);
+            const result = await TimeSlotService.deleteTimeSlot(timeSlotIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);

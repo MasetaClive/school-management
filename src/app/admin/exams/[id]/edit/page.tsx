@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
-type SelectOption = { id: string; name?: string; code?: string };
+type SelectOption = { id: string; name?: string; code?: string; full_name?: string; teacher_id?: string; year?: string };
 
 export default function EditExamPage() {
     const router = useRouter();
@@ -16,12 +16,14 @@ export default function EditExamPage() {
 
     const [classes, setClasses] = useState<SelectOption[]>([]);
     const [subjects, setSubjects] = useState<SelectOption[]>([]);
+    const [teachers, setTeachers] = useState<SelectOption[]>([]);
+    const [academicYears, setAcademicYears] = useState<SelectOption[]>([]);
 
     const [form, setForm] = useState({
         name: '',
         class_id: '',
         subject_id: '',
-        exam_date: '',
+        teacher_id: '', exam_type: 'assessment', exam_date: '',
         max_marks: 0,
         academic_year: '',
     });
@@ -30,27 +32,32 @@ export default function EditExamPage() {
         async function loadData() {
             try {
                 setLoading(true);
-                const [resE, resC, resS] = await Promise.all([
+                const [resE, resC, resS, resT, resY] = await Promise.all([
                     fetch(`/api/admin/exams/${id}`),
                     fetch('/api/admin/classes'),
                     fetch('/api/admin/subjects'),
+                    fetch('/api/admin/teachers'), fetch('/api/admin/academic-years'),
                 ]);
 
-                const [dataE, dataC, dataS] = await Promise.all([
+                const [dataE, dataC, dataS, dataT, dataY] = await Promise.all([
                     resE.json(),
                     resC.json(),
                     resS.json(),
+                    resT.json(), resY.json(),
                 ]);
 
                 if (!resE.ok) throw new Error(dataE.error ?? 'Failed to load exam');
 
                 setClasses(dataC.data || []);
                 setSubjects(dataS.data || []);
+                setTeachers(dataT.data || []); setAcademicYears(dataY.data || []);
 
                 setForm({
                     name: dataE.name,
                     class_id: dataE.class_id,
                     subject_id: dataE.subject_id,
+                    teacher_id: dataE.teacher_id,
+                    exam_type: dataE.exam_type,
                     exam_date: dataE.exam_date,
                     max_marks: dataE.max_marks,
                     academic_year: dataE.academic_year,
@@ -112,6 +119,8 @@ export default function EditExamPage() {
                     />
                 </div>
 
+                <div className="grid md:grid-cols-2 gap-4"><div><label className="block text-sm font-medium mb-1">Teacher *</label><select className="w-full border rounded-md px-3 py-2 text-sm bg-background" value={form.teacher_id} onChange={(e) => setForm(f => ({ ...f, teacher_id: e.target.value }))} required><option value="">Select Teacher</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.full_name} {t.teacher_id ? `(${t.teacher_id})` : ''}</option>)}</select></div><div><label className="block text-sm font-medium mb-1">Exam Type *</label><select className="w-full border rounded-md px-3 py-2 text-sm bg-background" value={form.exam_type} onChange={(e) => setForm(f => ({ ...f, exam_type: e.target.value }))} required><option value="assessment">Assessment</option><option value="quiz">Quiz</option><option value="test">Test</option><option value="midterm">Midterm</option><option value="final">Final</option><option value="practical">Practical</option></select></div></div>
+
                 <div className="grid md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium mb-1">Class *</label>
@@ -164,12 +173,12 @@ export default function EditExamPage() {
 
                 <div>
                     <label className="block text-sm font-medium mb-1">Academic Year *</label>
-                    <input
+                    <select
                         className="w-full border rounded-md px-3 py-2 text-sm bg-background"
                         value={form.academic_year}
                         onChange={(e) => setForm(f => ({ ...f, academic_year: e.target.value }))}
                         required
-                    />
+                    ><option value="">Select academic year</option>{academicYears.map(year => <option key={year.id} value={year.year}>{year.year}</option>)}</select>
                 </div>
 
                 <button

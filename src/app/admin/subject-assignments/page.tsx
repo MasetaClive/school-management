@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type AssignmentRow = {
@@ -20,17 +20,29 @@ type ListResponse = {
     totalPages: number;
 };
 
+type SelectOption = { id: string; name?: string; full_name?: string; code?: string; teacher_id?: string; grade_level?: string };
+
 export default function SubjectAssignmentsPage() {
     const [data, setData] = useState<ListResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [search, setSearch] = useState('');
+    const [filters, setFilters] = useState({ teacher_id: '', subject_id: '', class_id: '' });
+    const [teachers, setTeachers] = useState<SelectOption[]>([]);
+    const [subjects, setSubjects] = useState<SelectOption[]>([]);
+    const [classes, setClasses] = useState<SelectOption[]>([]);
 
     async function load() {
         try {
             setLoading(true);
             setError(null);
-            const res = await fetch(`/api/admin/subject-assignments?page=${page}`);
+            const params = new URLSearchParams({ page: String(page) });
+            if (search.trim()) params.set('search', search.trim());
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value) params.set(key, value);
+            });
+            const res = await fetch(`/api/admin/subject-assignments?${params.toString()}`);
             const json = await res.json();
             if (!res.ok) {
                 throw new Error(json.error ?? 'Failed to load assignments');
@@ -45,7 +57,33 @@ export default function SubjectAssignmentsPage() {
 
     useEffect(() => {
         void load();
-    }, [page]);
+    }, [page, filters]);
+
+    useEffect(() => {
+        async function loadFilters() {
+            const [teachersResponse, subjectsResponse, classesResponse] = await Promise.all([
+                fetch('/api/admin/teachers'),
+                fetch('/api/admin/subjects'),
+                fetch('/api/admin/classes'),
+            ]);
+            const [teacherData, subjectData, classData] = await Promise.all([
+                teachersResponse.json(), subjectsResponse.json(), classesResponse.json(),
+            ]);
+            if (teachersResponse.ok) setTeachers(teacherData.data ?? []);
+            if (subjectsResponse.ok) setSubjects(subjectData.data ?? []);
+            if (classesResponse.ok) setClasses(classData.data ?? []);
+        }
+        void loadFilters();
+    }, []);
+
+    function handleSearch(event: FormEvent) {
+        event.preventDefault();
+        if (page === 1) {
+            void load();
+        } else {
+            setPage(1);
+        }
+    }
 
     async function handleDelete(id: string) {
         if (!confirm('Are you sure you want to delete this assignment?')) return;
@@ -74,6 +112,29 @@ export default function SubjectAssignmentsPage() {
                     New Assignment
                 </Link>
             </div>
+
+            <form onSubmit={handleSearch} className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">
+                <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="rounded-md border bg-background px-3 py-2 text-sm"
+                    placeholder="Search teacher, subject, class, or year"
+                    aria-label="Search assignments"
+                />
+                <select value={filters.teacher_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, teacher_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm">
+                    <option value="">All teachers</option>
+                    {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.full_name} ({teacher.teacher_id})</option>)}
+                </select>
+                <select value={filters.subject_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, subject_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm">
+                    <option value="">All subjects</option>
+                    {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name} ({subject.code})</option>)}
+                </select>
+                <select value={filters.class_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, class_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm">
+                    <option value="">All classes</option>
+                    {classes.map((classOption) => <option key={classOption.id} value={classOption.id}>{classOption.name} ({classOption.grade_level})</option>)}
+                </select>
+                <button type="submit" className="w-fit rounded-md border px-4 py-2 text-sm font-medium">Search</button>
+            </form>
 
             {loading && <p>Loading assignments...</p>}
             {error && <p className="text-sm text-red-600">{error}</p>}

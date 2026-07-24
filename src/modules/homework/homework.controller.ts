@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getUserRole } from '@/lib/auth';
 import { HomeworkService, HomeworkServiceError } from './homework.service';
-import { createHomeworkSchema, updateHomeworkSchema, listHomeworkQuerySchema } from './homework.validation';
+import { createHomeworkSchema, updateHomeworkSchema, listHomeworkQuerySchema, homeworkIdParamSchema } from './homework.validation';
 
 class ApiError extends Error {
     status: number;
@@ -23,6 +23,9 @@ async function ensureRole(allowedRoles: string[]) {
 function toJsonError(e: unknown) {
     if (e instanceof ApiError || e instanceof HomeworkServiceError) {
         return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
+        return NextResponse.json({ error: (e as Error).message }, { status: 400 });
     }
     console.error('[homework] unexpected error', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -56,7 +59,7 @@ export const HomeworkController = {
     async getById(req: NextRequest, id: string) {
         try {
             await ensureRole(['admin', 'teacher', 'student', 'parent']);
-            const data = await HomeworkService.getHomeworkById(id);
+            const data = await HomeworkService.getHomeworkById(homeworkIdParamSchema.parse(id));
             return NextResponse.json(data);
         } catch (e) {
             return toJsonError(e);
@@ -66,9 +69,10 @@ export const HomeworkController = {
     async update(req: NextRequest, id: string) {
         try {
             await ensureRole(['admin', 'teacher']);
+            const homeworkId = homeworkIdParamSchema.parse(id);
             const body = await req.json();
             const valid = updateHomeworkSchema.parse(body);
-            const data = await HomeworkService.updateHomework(id, valid);
+            const data = await HomeworkService.updateHomework(homeworkId, valid);
             return NextResponse.json(data);
         } catch (e) {
             return toJsonError(e);
@@ -78,7 +82,7 @@ export const HomeworkController = {
     async delete(req: NextRequest, id: string) {
         try {
             await ensureRole(['admin', 'teacher']);
-            const data = await HomeworkService.deleteHomework(id);
+            const data = await HomeworkService.deleteHomework(homeworkIdParamSchema.parse(id));
             return NextResponse.json(data);
         } catch (e) {
             return toJsonError(e);

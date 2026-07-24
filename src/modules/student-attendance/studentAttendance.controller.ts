@@ -4,6 +4,7 @@ import {
     createStudentAttendanceSchema,
     updateStudentAttendanceSchema,
     listStudentAttendanceQuerySchema,
+    studentAttendanceIdParamSchema,
 } from './studentAttendance.validation';
 import { StudentAttendanceService, StudentAttendanceServiceError } from './studentAttendance.service';
 
@@ -30,7 +31,6 @@ function toJsonError(e: unknown) {
     if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
         return NextResponse.json({ error: (e as any).message }, { status: 400 });
     }
-    // eslint-disable-next-line no-console
     console.error('[student-attendance] unexpected error', e);
     return NextResponse.json(
         { error: 'Internal server error' },
@@ -49,6 +49,8 @@ export const StudentAttendanceController = {
                 student_id: url.searchParams.get('student_id') ?? undefined,
                 class_id: url.searchParams.get('class_id') ?? undefined,
                 date: url.searchParams.get('date') ?? undefined,
+                status: url.searchParams.get('status') ?? undefined,
+                search: url.searchParams.get('search') ?? undefined,
             });
 
             const result = await StudentAttendanceService.listAttendance(query);
@@ -74,7 +76,7 @@ export const StudentAttendanceController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const record = await StudentAttendanceService.getAttendanceById(id);
+            const record = await StudentAttendanceService.getAttendanceById(studentAttendanceIdParamSchema.parse(id));
             return NextResponse.json(record, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -84,10 +86,11 @@ export const StudentAttendanceController = {
     async update(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
+            const attendanceId = studentAttendanceIdParamSchema.parse(id);
             const body = await req.json();
             const input = updateStudentAttendanceSchema.parse(body);
 
-            const record = await StudentAttendanceService.updateAttendance(id, input);
+            const record = await StudentAttendanceService.updateAttendance(attendanceId, input);
             return NextResponse.json(record, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -97,7 +100,7 @@ export const StudentAttendanceController = {
     async delete(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const result = await StudentAttendanceService.deleteAttendance(id);
+            const result = await StudentAttendanceService.deleteAttendance(studentAttendanceIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);

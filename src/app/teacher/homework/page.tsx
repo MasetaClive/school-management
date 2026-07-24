@@ -6,9 +6,10 @@ import Link from 'next/link';
 type Homework = {
     id: string;
     title: string;
+    description: string | null;
     due_date: string;
-    class: { name: string };
-    subject: { name: string; code: string };
+    class: { name: string } | null;
+    subject: { name: string; code: string } | null;
 };
 
 export default function TeacherHomeworkPage() {
@@ -16,88 +17,122 @@ export default function TeacherHomeworkPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    async function load() {
+    async function loadHomework() {
         try {
             setLoading(true);
-            const res = await fetch('/api/admin/homework'); // Reuse admin API which has role checks
+            setError(null);
+            const res = await fetch('/api/teacher/homework');
             const json = await res.json();
             if (!res.ok) throw new Error(json.error || 'Failed to load homework');
             setData(json.data || []);
-        } catch (e) {
-            setError(e instanceof Error ? e.message : 'Failed to load homework');
+        } catch (e: any) {
+            setError(e.message || 'Failed to load homework');
         } finally {
             setLoading(false);
         }
     }
 
     useEffect(() => {
-        void load();
+        void loadHomework();
     }, []);
 
     async function handleDelete(id: string) {
-        if (!confirm('Are you sure you want to delete this assignment?')) return;
+        if (!confirm('Are you sure you want to delete this assignment permanently?')) return;
         try {
-            const res = await fetch(`/api/admin/homework/${id}`, { method: 'DELETE' });
+            const res = await fetch(`/api/teacher/homework/${id}`, { method: 'DELETE' });
             if (!res.ok) {
                 const json = await res.json();
                 throw new Error(json.error || 'Failed to delete');
             }
-            void load();
-        } catch (e) {
-            alert(e instanceof Error ? e.message : 'Failed to delete');
+            void loadHomework();
+        } catch (e: any) {
+            alert(e.message || 'Failed to delete assignment');
         }
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Homework Management</h2>
+        <div className="space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div className="space-y-1">
+                    <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic">Homework Management</h2>
+                    <p className="text-xs text-slate-500 font-sans font-medium">Assign and track homework for your classes</p>
+                </div>
                 <Link
                     href="/teacher/homework/create"
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                    className="rounded-[2rem] bg-indigo-600 px-6 py-3.5 text-center font-black uppercase text-xs text-white hover:bg-indigo-700 transition-all hover:shadow-lg hover:shadow-indigo-100"
                 >
                     Create Assignment
                 </Link>
             </div>
 
-            {loading && <p>Loading assignments...</p>}
-            {error && <p className="text-red-500 font-medium">{error}</p>}
-
-            {!loading && (
-                <div className="overflow-x-auto rounded-lg border bg-card">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-muted">
-                            <tr>
-                                <th className="px-4 py-2 text-left text-xs uppercase tracking-wider font-bold">Title</th>
-                                <th className="px-4 py-2 text-left text-xs uppercase tracking-wider font-bold">Class</th>
-                                <th className="px-4 py-2 text-left text-xs uppercase tracking-wider font-bold">Subject</th>
-                                <th className="px-4 py-2 text-left text-xs uppercase tracking-wider font-bold">Due Date</th>
-                                <th className="px-4 py-2 text-right text-xs uppercase tracking-wider font-bold">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.map((h) => (
-                                <tr key={h.id} className="border-t hover:bg-muted/50 transition-colors">
-                                    <td className="px-4 py-2 font-medium">{h.title}</td>
-                                    <td className="px-4 py-2">{h.class.name}</td>
-                                    <td className="px-4 py-2">
-                                        <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-bold mr-2">{h.subject.code}</span>
-                                        {h.subject.name}
-                                    </td>
-                                    <td className="px-4 py-2 text-muted-foreground">{new Date(h.due_date).toLocaleDateString()}</td>
-                                    <td className="px-4 py-2 text-right space-x-3">
-                                        <Link href={`/teacher/homework/${h.id}/edit`} className="text-primary hover:underline font-medium">Edit</Link>
-                                        <button onClick={() => void handleDelete(h.id)} className="text-red-600 hover:underline font-medium">Delete</button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {data.length === 0 && (
+            {loading ? (
+                <div className="flex items-center justify-center py-16">
+                    <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+            ) : error ? (
+                <div className="p-6 border border-red-100 bg-red-50 text-red-700 rounded-2xl text-xs font-black uppercase tracking-tight text-center">
+                    {error}
+                </div>
+            ) : (
+                <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl shadow-slate-200/50">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-100 text-xs">
+                            <thead className="bg-slate-50/50">
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No homework assignments found.</td>
+                                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Class</th>
+                                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Subject</th>
+                                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Assignment Title</th>
+                                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Due Date</th>
+                                    <th className="px-6 py-4 text-right text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>
                                 </tr>
-                            )}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 bg-white">
+                                {data.map((h) => (
+                                    <tr key={h.id} className="hover:bg-slate-50/40 transition-colors">
+                                        <td className="px-6 py-4 font-black text-slate-800 uppercase tracking-tight">
+                                            {h.class?.name || 'Unknown Class'}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black mr-2 font-mono">
+                                                {h.subject?.code || 'N/A'}
+                                            </span>
+                                            <span className="font-bold text-slate-700">{h.subject?.name}</span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="font-black text-slate-800 uppercase tracking-tight">{h.title}</p>
+                                            {h.description && (
+                                                <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5 max-w-sm">{h.description}</p>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-500 font-bold">
+                                            {new Date(h.due_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                        </td>
+                                        <td className="px-6 py-4 text-right space-x-4">
+                                            <Link 
+                                                href={`/teacher/homework/${h.id}/edit`} 
+                                                className="text-indigo-600 hover:text-indigo-900 font-black uppercase tracking-wider text-[10px] hover:underline"
+                                            >
+                                                Edit
+                                            </Link>
+                                            <button 
+                                                onClick={() => void handleDelete(h.id)} 
+                                                className="text-rose-600 hover:text-rose-900 font-black uppercase tracking-wider text-[10px] hover:underline bg-transparent border-none cursor-pointer"
+                                            >
+                                                Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {data.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">
+                                            No homework assignments created yet.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>

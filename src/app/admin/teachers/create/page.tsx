@@ -17,6 +17,7 @@ export default function CreateTeacherPage() {
         hire_date: '',
         qualification: '',
         create_account: true,
+        password_mode: 'auto' as 'auto' | 'manual',
         password: '',
     });
 
@@ -32,7 +33,7 @@ export default function CreateTeacherPage() {
                 phone: form.phone || null,
                 hire_date: form.hire_date || null,
                 qualification: form.qualification || null,
-                password: form.create_account ? form.password : undefined,
+                password: form.create_account && form.password_mode === 'manual' ? form.password : undefined,
             };
 
             const res = await fetch('/api/admin/teachers', {
@@ -43,6 +44,10 @@ export default function CreateTeacherPage() {
 
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'Failed to create teacher');
+
+            if (json.account) {
+                alert(`Account created.\nUsername: ${json.account.username}\nTemporary password: ${json.account.initialPassword}\nThe user must change this password on first sign-in.`);
+            }
 
             router.push('/admin/teachers');
             router.refresh();
@@ -187,24 +192,35 @@ export default function CreateTeacherPage() {
                             <div className="space-y-4">
                                 <label className={labelClasses + " text-slate-500"}>Assigned Login ID (Auto)</label>
                                 <div className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-5 py-4 text-xs font-black text-indigo-400 italic">
-                                    {form.email || (form.teacher_id ? `${form.teacher_id.toLowerCase()}@school.local` : 'ENTER FACULTY ID OR EMAIL...')}
+                                    {form.teacher_id || 'ENTER FACULTY ID TO PREVIEW...'}
                                 </div>
                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
-                                    If email is provided, it will be used as the primary identifier.
+                                    Faculty use their staff ID to sign in.
                                 </p>
                             </div>
                             <div>
-                                <label className={labelClasses + " text-slate-500"}>Initial Access Password *</label>
+                                <label className={labelClasses + " text-slate-500"}>Password Setup</label>
+                                <select
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-5 py-4 text-xs font-bold text-white focus:border-indigo-500 outline-none transition-all"
+                                    value={form.password_mode}
+                                    onChange={(e) => setForm({ ...form, password_mode: e.target.value as 'auto' | 'manual' })}
+                                >
+                                    <option value="auto">Generate secure temporary password</option>
+                                    <option value="manual">Enter a temporary password</option>
+                                </select>
+                                {form.password_mode === 'manual' && <>
+                                <label className={labelClasses + " text-slate-500 mt-4"}>Initial Access Password *</label>
                                 <input
-                                    required={form.create_account}
+                                    required
                                     type="password"
                                     placeholder="Minimum 6 characters"
                                     className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-5 py-4 text-xs font-bold text-white focus:border-indigo-500 outline-none transition-all shadow-inner"
                                     value={form.password}
                                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                                 />
+                                </>}
                                 <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                                    Recommend a complex cryptographic sequence for professional accounts.
+                                    The user will be required to change this password on first sign-in.
                                 </p>
                             </div>
                         </div>

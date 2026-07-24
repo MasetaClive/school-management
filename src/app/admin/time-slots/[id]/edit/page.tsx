@@ -50,7 +50,7 @@ export default function EditTimeSlotPage() {
                 const s = json as SlotData;
                 setForm({
                     day_of_week: s.day_of_week,
-                    start_time: s.start_time.slice(0, 5), // Format HH:MM
+                    start_time: s.start_time.slice(0, 5),
                     end_time: s.end_time.slice(0, 5),
                 });
             } catch (e) {

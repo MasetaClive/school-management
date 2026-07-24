@@ -8,7 +8,12 @@ export const createTeacherSchema = z.object({
     hire_date: z.string().optional().nullable(),
     qualification: z.string().optional().nullable(),
     create_account: z.boolean().optional(),
+    password_mode: z.enum(['auto', 'manual']).default('auto'),
     password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+}).superRefine((data, ctx) => {
+    if (data.create_account && data.password_mode === 'manual' && !data.password) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: 'Password is required when manual password mode is selected' });
+    }
 });
 
 export const updateTeacherSchema = z
@@ -33,6 +38,8 @@ export const listTeachersQuerySchema = z.object({
         .optional(),
     search: z.string().optional(),
 });
+
+export const teacherIdParamSchema = z.string().uuid('Invalid teacher ID');
 
 export type CreateTeacherInput = z.infer<typeof createTeacherSchema>;
 export type UpdateTeacherInput = z.infer<typeof updateTeacherSchema>;

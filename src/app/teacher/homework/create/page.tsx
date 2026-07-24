@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 
 type Class = { id: string; name: string; academic_year: string };
 type Subject = { id: string; name: string; code: string };
-type Teacher = { id: string; full_name: string };
 
 export default function CreateHomeworkPage() {
     const router = useRouter();
     const [classes, setClasses] = useState<Class[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [teacher, setTeacher] = useState<Teacher | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const [form, setForm] = useState({
         class_id: '',
@@ -23,171 +24,213 @@ export default function CreateHomeworkPage() {
         academic_year: ''
     });
 
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
     useEffect(() => {
-        async function load() {
+        async function loadData() {
             try {
-                const [clsRes, subRes, userData] = await Promise.all([
-                    fetch('/api/admin/classes'),
-                    fetch('/api/admin/subjects'),
-                    fetch('/api/auth/role') // Custom endpoint to get current related entity
-                ]);
-                
-                const clsJson = await clsRes.json();
-                const subJson = await subRes.json();
-                
-                setClasses(clsJson.data || []);
-                setSubjects(subJson.data || []);
-                
-                // For now, let's assume we can fetch teacher info from a specific endpoint or just let the user pick.
-                // In a real app, teacher_id would be pre-filled from session.
-                // I'll add a fetch for the specific teacher linked to this user.
-                const teacherRes = await fetch('/api/admin/teachers');
-                const teacherJson = await teacherRes.json();
-                setTeacher(teacherJson.data?.[0] || null); // TEMPORARY: Pick first teacher for demo
-                
-                if (clsJson.data?.[0]) {
-                    setForm(f => ({ ...f, class_id: clsJson.data[0].id, academic_year: clsJson.data[0].academic_year }));
+                setLoading(true);
+                const res = await fetch('/api/teacher/classes');
+                if (!res.ok) throw new Error('Failed to load your assigned classes');
+                const json = await res.json();
+                const list = json.data || [];
+                setClasses(list);
+
+                if (list.length > 0) {
+                    setForm(f => ({ 
+                        ...f, 
+                        class_id: list[0].id, 
+                        academic_year: list[0].academic_year 
+                    }));
                 }
-                if (subJson.data?.[0]) {
-                    setForm(f => ({ ...f, subject_id: subJson.data[0].id }));
-                }
-            } catch (e) {
-                setError('Failed to initialize form');
+            } catch (e: any) {
+                setError(e.message || 'Failed to initialize homework form');
             } finally {
                 setLoading(false);
             }
         }
-        void load();
+        void loadData();
     }, []);
+
+    // Load subjects when class_id changes
+    useEffect(() => {
+        if (!form.class_id) {
+            setSubjects([]);
+            return;
+        }
+
+        async function loadSubjects() {
+            try {
+                const res = await fetch(`/api/teacher/subjects?class_id=${form.class_id}`);
+                if (!res.ok) throw new Error('Failed to load subjects for this class');
+                const json = await res.json();
+                const list = json.data || [];
+                setSubjects(list);
+
+                if (list.length > 0) {
+                    setForm(f => ({ ...f, subject_id: list[0].id }));
+                } else {
+                    setForm(f => ({ ...f, subject_id: '' }));
+                }
+            } catch (err: any) {
+                setError(err.message || 'Failed to load subjects');
+            }
+        }
+
+        void loadSubjects();
+    }, [form.class_id]);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (!teacher) {
-            alert('Teacher data not found');
+        if (!form.class_id || !form.subject_id) {
+            alert('Please select a class and a subject');
             return;
         }
 
         try {
             setSaving(true);
             setError(null);
-            const res = await fetch('/api/admin/homework', {
+            
+            // Format due date as valid ISO string (end of due date)
+            const formattedDueDate = new Date(`${form.due_date}T23:59:59.999Z`).toISOString();
+
+            const payload = {
+                class_id: form.class_id,
+                subject_id: form.subject_id,
+                title: form.title,
+                description: form.description || null,
+                due_date: formattedDueDate,
+                attachment_url: form.attachment_url || null,
+                academic_year: form.academic_year
+            };
+
+            const res = await fetch('/api/teacher/homework', {
                 method: 'POST',
-                body: JSON.stringify({
-                    ...form,
-                    teacher_id: teacher.id,
-                    due_date: new Date(form.due_date).toISOString()
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
+
+            const json = await res.json();
             if (!res.ok) {
-                const json = await res.json();
-                throw new Error(json.error || 'Failed to create homework');
+                throw new Error(json.error || 'Failed to create homework assignment');
             }
+
             router.push('/teacher/homework');
-        } catch (e) {
-            setError(e instanceof Error ? e.message : 'Failed to create homework');
+        } catch (e: any) {
+            setError(e.message || 'Failed to create homework assignment');
         } finally {
             setSaving(false);
         }
     }
 
-    if (loading) return <p className="p-8 text-center text-muted-foreground">Initializing form...</p>;
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[50vh]">
+                <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
-            <h2 className="text-2xl font-bold tracking-tight">Create New Homework</h2>
+        <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-500 pb-12">
+            <div className="space-y-1">
+                <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic">Create Assignment</h2>
+                <p className="text-xs text-slate-500 font-sans font-medium">Issue homework to your students</p>
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border bg-card p-6 shadow-sm">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium">Select Class</label>
+            <form onSubmit={handleSubmit} className="space-y-6 rounded-[2rem] border border-slate-100 bg-white p-8 md:p-10 shadow-xl shadow-slate-200/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Select Class</label>
                         <select 
                             value={form.class_id}
                             onChange={(e) => {
                                 const cls = classes.find(c => c.id === e.target.value);
                                 setForm({ ...form, class_id: e.target.value, academic_year: cls?.academic_year || '' });
                             }}
-                            className="w-full rounded-md border px-3 py-2 text-sm"
+                            className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all"
                             required
                         >
+                            {classes.length === 0 && <option value="">No assigned classes</option>}
                             {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.academic_year})</option>)}
                         </select>
                     </div>
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium">Subject</label>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Select Subject</label>
                         <select 
                             value={form.subject_id}
                             onChange={(e) => setForm({ ...form, subject_id: e.target.value })}
-                            className="w-full rounded-md border px-3 py-2 text-sm"
+                            className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all"
                             required
+                            disabled={subjects.length === 0}
                         >
-                            {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            {subjects.length === 0 && <option value="">No assigned subjects in this class</option>}
+                            {subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
                         </select>
                     </div>
                 </div>
 
-                <div className="space-y-1">
-                    <label className="text-sm font-medium">Assignment Title</label>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Assignment Title</label>
                     <input 
                         type="text" 
                         value={form.title}
                         onChange={(e) => setForm({ ...form, title: e.target.value })}
-                        className="w-full rounded-md border px-3 py-2 text-sm"
-                        placeholder="e.g. Chapter 5 Exercises"
+                        className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all"
+                        placeholder="e.g. Chapter 4 Integration Exercises"
                         required
                     />
                 </div>
 
-                <div className="space-y-1">
-                    <label className="text-sm font-medium">Description / Instructions</label>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Description / Instructions</label>
                     <textarea 
                         value={form.description}
                         onChange={(e) => setForm({ ...form, description: e.target.value })}
-                        className="w-full rounded-md border px-3 py-2 text-sm min-h-[100px]"
+                        className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all min-h-[120px]"
                         placeholder="Provide detailed instructions for the students..."
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium">Due Date</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Due Date</label>
                         <input 
                             type="date" 
                             value={form.due_date}
                             onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                            className="w-full rounded-md border px-3 py-2 text-sm"
+                            className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all"
                             required
                         />
                     </div>
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium">Attachment URL (Optional)</label>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Attachment URL (Optional)</label>
                         <input 
                             type="url" 
                             value={form.attachment_url}
                             onChange={(e) => setForm({ ...form, attachment_url: e.target.value })}
-                            className="w-full rounded-md border px-3 py-2 text-sm"
-                            placeholder="Link to resource"
+                            className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all"
+                            placeholder="https://example.com/material.pdf"
                         />
                     </div>
                 </div>
 
-                {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
+                {error && (
+                    <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs font-black uppercase tracking-tight text-center">
+                        {error}
+                    </div>
+                )}
 
-                <div className="flex justify-end gap-3 pt-4">
+                <div className="flex justify-end gap-4 pt-4 border-t border-slate-50">
                     <button 
                         type="button" 
                         onClick={() => router.back()}
-                        className="px-4 py-2 text-sm font-medium hover:underline"
+                        className="px-6 py-4 rounded-[2rem] font-black uppercase text-slate-500 tracking-widest text-[10px] hover:bg-slate-100 transition-all"
                     >
                         Cancel
                     </button>
                     <button 
                         type="submit" 
-                        disabled={saving}
-                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                        disabled={saving || subjects.length === 0}
+                        className="px-8 py-4 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-indigo-600 disabled:opacity-50 transition-all hover:shadow-lg hover:shadow-indigo-100"
                     >
                         {saving ? 'Creating...' : 'Create Assignment'}
                     </button>

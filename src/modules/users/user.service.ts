@@ -1,5 +1,20 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import type { CreateUserInput, ListUsersQuery } from './user.validation';
+import { randomBytes } from 'crypto';
+
+export type AccountProvisionInput = {
+  role: 'student' | 'teacher' | 'parent';
+  username: string;
+  fullName: string;
+  email?: string | null;
+  password?: string;
+};
+
+export type ProvisionedAccount = {
+  userId: string;
+  username: string;
+  initialPassword: string;
+};
 
 export class UserServiceError extends Error {
   status: number;
@@ -11,6 +26,52 @@ export class UserServiceError extends Error {
 }
 
 export class UserService {
+  static generateTemporaryPassword() {
+    return `${randomBytes(12).toString('base64url')}Aa1!`;
+  }
+
+  static async provisionAccount(input: AccountProvisionInput): Promise<ProvisionedAccount> {
+    const supabase = await createAdminClient();
+    const initialPassword = input.password || this.generateTemporaryPassword();
+    const authEmail = input.email || `${input.username.toLowerCase()}@school.local`;
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email: authEmail,
+      password: initialPassword,
+      email_confirm: true,
+      user_metadata: {
+        full_name: input.fullName,
+        role: input.role,
+        force_password_change: true,
+      },
+    });
+
+    if (authError || !authUser.user) {
+      throw new UserServiceError(authError?.message || 'Failed to create login account', 500);
+    }
+
+    const { error: userError } = await supabase.from('users').insert({
+      id: authUser.user.id,
+      email: authEmail,
+      full_name: input.fullName,
+      role: input.role,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    if (userError) {
+      await supabase.auth.admin.deleteUser(authUser.user.id);
+      throw new UserServiceError(`Failed to create user profile: ${userError.message}`, 500);
+    }
+
+    return { userId: authUser.user.id, username: input.username, initialPassword };
+  }
+
+  static async rollbackProvisionedAccount(userId: string) {
+    const supabase = await createAdminClient();
+    await supabase.from('users').delete().eq('id', userId);
+    await supabase.auth.admin.deleteUser(userId);
+  }
+
   static async getUsers(query: ListUsersQuery) {
     const supabase = await createClient();
     const { page = 1, search, role } = query;

@@ -10,7 +10,6 @@ export class ReportCardServiceError extends Error {
 
 export class ReportCardService {
     static getLetterGrade(percentage: number): string {
-        if (percentage >= 90) return 'A+';
         if (percentage >= 80) return 'A';
         if (percentage >= 70) return 'B';
         if (percentage >= 60) return 'C';
@@ -29,12 +28,15 @@ export class ReportCardService {
         id,
         full_name,
         student_id,
+        academic_year,
+        class_id,
         class:classes(name, grade_level)
       `)
             .eq('id', studentId)
             .single();
 
-        if (studentError || !student) {
+        if (studentError) throw new ReportCardServiceError('Failed to fetch student', 500);
+        if (!student) {
             throw new ReportCardServiceError('Student not found', 404);
         }
 
@@ -45,8 +47,13 @@ export class ReportCardService {
             .eq('id', examId)
             .single();
 
-        if (examError || !exam) {
+        if (examError) throw new ReportCardServiceError('Failed to fetch exam', 500);
+        if (!exam) {
             throw new ReportCardServiceError('Exam not found', 404);
+        }
+
+        if (student.class_id !== exam.class_id || student.academic_year !== exam.academic_year) {
+            throw new ReportCardServiceError('Student is not eligible for this exam report card', 409);
         }
 
         // 3. Get Results for this student and exam
@@ -71,7 +78,7 @@ export class ReportCardService {
             throw new ReportCardServiceError('Failed to fetch results for report card', 500);
         }
 
-        const subjects = results.map((r: any) => {
+        const subjects = (results ?? []).map((r: any) => {
             const marks = Number(r.marks_obtained);
             const maxMarks = Number(r.exam.max_marks);
             const percentage = maxMarks > 0 ? (marks / maxMarks) * 100 : 0;
@@ -114,7 +121,10 @@ export class ReportCardService {
                 totalObtained,
                 totalMax,
                 overallPercentage: parseFloat(overallPercentage.toFixed(2)),
-                overallGrade: this.getLetterGrade(overallPercentage)
+                overallGrade: totalMax > 0 ? this.getLetterGrade(overallPercentage) : 'Not available',
+                passed: totalMax > 0 ? overallPercentage >= 50 : null,
+                resultCount: subjects.length,
+                isComplete: subjects.length > 0,
             }
         };
     }

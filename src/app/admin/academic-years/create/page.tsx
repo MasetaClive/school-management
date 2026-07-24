@@ -24,7 +24,7 @@ export default function CreateAcademicYearPage() {
       const res = await fetch('/api/admin/academic-years', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, start_date: form.start_date || null, end_date: form.end_date || null }),
       });
 
       const json = await res.json();

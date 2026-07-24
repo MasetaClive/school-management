@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type HomeworkRow = {
@@ -20,17 +20,28 @@ type ListResponse = {
     totalPages: number;
 };
 
+type SelectOption = { id: string; name?: string; full_name?: string; code?: string; teacher_id?: string; grade_level?: string; year?: string };
+
 export default function HomeworkPage() {
     const [data, setData] = useState<ListResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [search, setSearch] = useState('');
+    const [filters, setFilters] = useState({ class_id: '', subject_id: '', teacher_id: '', academic_year: '', due_after: '', due_before: '' });
+    const [classes, setClasses] = useState<SelectOption[]>([]);
+    const [subjects, setSubjects] = useState<SelectOption[]>([]);
+    const [teachers, setTeachers] = useState<SelectOption[]>([]);
+    const [academicYears, setAcademicYears] = useState<SelectOption[]>([]);
 
     async function load() {
         try {
             setLoading(true);
             setError(null);
-            const res = await fetch(`/api/admin/homework?page=${page}`);
+            const params = new URLSearchParams({ page: String(page) });
+            if (search.trim()) params.set('search', search.trim());
+            Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
+            const res = await fetch(`/api/admin/homework?${params.toString()}`);
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'Failed to load homework');
             setData(json);
@@ -43,7 +54,33 @@ export default function HomeworkPage() {
 
     useEffect(() => {
         void load();
-    }, [page]);
+    }, [page, filters]);
+
+    useEffect(() => {
+        async function loadFilters() {
+            try {
+                const [classesResponse, subjectsResponse, teachersResponse, yearsResponse] = await Promise.all([
+                    fetch('/api/admin/classes'), fetch('/api/admin/subjects'), fetch('/api/admin/teachers'), fetch('/api/admin/academic-years'),
+                ]);
+                const [classesData, subjectsData, teachersData, yearsData] = await Promise.all([
+                    classesResponse.json(), subjectsResponse.json(), teachersResponse.json(), yearsResponse.json(),
+                ]);
+                if (classesResponse.ok) setClasses(classesData.data ?? []);
+                if (subjectsResponse.ok) setSubjects(subjectsData.data ?? []);
+                if (teachersResponse.ok) setTeachers(teachersData.data ?? []);
+                if (yearsResponse.ok) setAcademicYears(yearsData.data ?? []);
+            } catch {
+                setError('Failed to load homework filters');
+            }
+        }
+        void loadFilters();
+    }, []);
+
+    function handleSearch(event: FormEvent) {
+        event.preventDefault();
+        if (page === 1) void load();
+        else setPage(1);
+    }
 
     async function handleDelete(id: string) {
         if (!confirm('Are you sure you want to delete this homework?')) return;
@@ -68,6 +105,16 @@ export default function HomeworkPage() {
                     Assign Homework
                 </Link>
             </div>
+
+            <form onSubmit={handleSearch} className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
+                <input value={search} onChange={(event) => setSearch(event.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Search homework, class, teacher, or subject" aria-label="Search homework" />
+                <select value={filters.class_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, class_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All classes</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name} {item.grade_level ? `(${item.grade_level})` : ''}</option>)}</select>
+                <select value={filters.subject_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, subject_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All subjects</option>{subjects.map((item) => <option key={item.id} value={item.id}>{item.name} {item.code ? `(${item.code})` : ''}</option>)}</select>
+                <select value={filters.teacher_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, teacher_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All teachers</option>{teachers.map((item) => <option key={item.id} value={item.id}>{item.full_name} {item.teacher_id ? `(${item.teacher_id})` : ''}</option>)}</select>
+                <select value={filters.academic_year} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, academic_year: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All academic years</option>{academicYears.map((item) => <option key={item.id} value={item.year}>{item.year}</option>)}</select>
+                <div className="flex gap-2"><input type="datetime-local" value={filters.due_after} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, due_after: event.target.value })); }} className="min-w-0 rounded-md border bg-background px-3 py-2 text-sm" aria-label="Due after" /><input type="datetime-local" value={filters.due_before} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, due_before: event.target.value })); }} className="min-w-0 rounded-md border bg-background px-3 py-2 text-sm" aria-label="Due before" /></div>
+                <button type="submit" className="w-fit rounded-md border px-4 py-2 text-sm font-medium">Search</button>
+            </form>
 
             {loading && <p>Loading assignments...</p>}
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}

@@ -35,6 +35,7 @@ export default function ReportCardsPage() {
                 const studentsData = await studentsRes.json();
                 const examsData = await examsRes.json();
 
+                if (!studentsRes.ok || !examsRes.ok) throw new Error('Failed to load report-card data');
                 setStudents(studentsData.data || []);
                 setExams(examsData.data || []);
                 
@@ -61,7 +62,7 @@ export default function ReportCardsPage() {
                         onChange={(e) => setSelectedExam(e.target.value)}
                         className="rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
-                        {exams.map(exam => (
+                        <option value="">Select exam</option>{exams.map(exam => (
                             <option key={exam.id} value={exam.id}>
                                 {exam.name} ({exam.academic_year})
                             </option>
@@ -91,12 +92,7 @@ export default function ReportCardsPage() {
                                     <td className="px-4 py-2 font-medium">{student.full_name}</td>
                                     <td className="px-4 py-2">{student.class?.name || 'N/A'}</td>
                                     <td className="px-4 py-2 text-right">
-                                        <Link
-                                            href={`/admin/report-cards/${student.id}?exam_id=${selectedExam}`}
-                                            className="text-primary hover:underline font-medium"
-                                        >
-                                            View Report Card
-                                        </Link>
+                                        {selectedExam ? <Link href={`/admin/report-cards/${student.id}?exam_id=${selectedExam}`} className="text-primary hover:underline font-medium">View Report Card</Link> : <span className="text-muted-foreground">Select an exam first</span>}
                                     </td>
                                 </tr>
                             ))}

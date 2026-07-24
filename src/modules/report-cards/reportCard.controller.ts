@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getUserRole } from '@/lib/auth';
 import { ReportCardService, ReportCardServiceError } from './reportCard.service';
+import { z } from 'zod';
+
+const uuidSchema = z.string().uuid('Invalid report card ID');
 
 class ApiError extends Error {
     status: number;
@@ -22,7 +25,6 @@ function toJsonError(e: unknown) {
     if (e instanceof ApiError || e instanceof ReportCardServiceError) {
         return NextResponse.json({ error: e.message }, { status: e.status });
     }
-    // eslint-disable-next-line no-console
     console.error('[report-cards] unexpected error', e);
     return NextResponse.json(
         { error: 'Internal server error' },
@@ -42,7 +44,7 @@ export const ReportCardController = {
                 return NextResponse.json({ error: 'exam_id is required' }, { status: 400 });
             }
 
-            const report = await ReportCardService.generateReport(studentId, examId);
+            const report = await ReportCardService.generateReport(uuidSchema.parse(studentId), uuidSchema.parse(examId));
             return NextResponse.json(report, { status: 200 });
         } catch (e) {
             return toJsonError(e);

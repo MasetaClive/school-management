@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type AttendanceRow = {
@@ -20,17 +20,26 @@ type ListResponse = {
     totalPages: number;
 };
 
+type SelectOption = { id: string; name?: string; full_name?: string; student_id?: string; grade_level?: string };
+
 export default function StudentAttendancePage() {
     const [data, setData] = useState<ListResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [search, setSearch] = useState('');
+    const [filters, setFilters] = useState({ student_id: '', class_id: '', date: '', status: '' });
+    const [students, setStudents] = useState<SelectOption[]>([]);
+    const [classes, setClasses] = useState<SelectOption[]>([]);
 
     async function load() {
         try {
             setLoading(true);
             setError(null);
-            const res = await fetch(`/api/admin/student-attendance?page=${page}`);
+            const params = new URLSearchParams({ page: String(page) });
+            if (search.trim()) params.set('search', search.trim());
+            Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
+            const res = await fetch(`/api/admin/student-attendance?${params.toString()}`);
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'Failed to load attendance');
             setData(json);
@@ -43,7 +52,31 @@ export default function StudentAttendancePage() {
 
     useEffect(() => {
         void load();
-    }, [page]);
+    }, [page, filters]);
+
+    useEffect(() => {
+        async function loadFilters() {
+            try {
+                const [studentsResponse, classesResponse] = await Promise.all([
+                    fetch('/api/admin/students'), fetch('/api/admin/classes'),
+                ]);
+                const [studentsData, classesData] = await Promise.all([
+                    studentsResponse.json(), classesResponse.json(),
+                ]);
+                if (studentsResponse.ok) setStudents(studentsData.data ?? []);
+                if (classesResponse.ok) setClasses(classesData.data ?? []);
+            } catch {
+                setError('Failed to load attendance filters');
+            }
+        }
+        void loadFilters();
+    }, []);
+
+    function handleSearch(event: FormEvent) {
+        event.preventDefault();
+        if (page === 1) void load();
+        else setPage(1);
+    }
 
     async function handleDelete(id: string) {
         if (!confirm('Are you sure you want to delete this record?')) return;
@@ -68,6 +101,15 @@ export default function StudentAttendancePage() {
                     Record Attendance
                 </Link>
             </div>
+
+            <form onSubmit={handleSearch} className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
+                <input value={search} onChange={(event) => setSearch(event.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Search student or class" aria-label="Search attendance" />
+                <select value={filters.student_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, student_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All students</option>{students.map((student) => <option key={student.id} value={student.id}>{student.full_name} {student.student_id ? `(${student.student_id})` : ''}</option>)}</select>
+                <select value={filters.class_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, class_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All classes</option>{classes.map((classOption) => <option key={classOption.id} value={classOption.id}>{classOption.name} {classOption.grade_level ? `(${classOption.grade_level})` : ''}</option>)}</select>
+                <input type="date" value={filters.date} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, date: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm" aria-label="Filter by date" />
+                <select value={filters.status} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, status: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All statuses</option><option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option></select>
+                <button type="submit" className="w-fit rounded-md border px-4 py-2 text-sm font-medium">Search</button>
+            </form>
 
             {loading && <p>Loading history...</p>}
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}

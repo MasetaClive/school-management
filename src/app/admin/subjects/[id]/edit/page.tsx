@@ -21,6 +21,7 @@ export default function EditSubjectPage() {
     const [subjectData, setSubjectData] = useState<SubjectData | null>(null);
 
     const [form, setForm] = useState({
+        code: '',
         name: '',
         description: '',
     });
@@ -38,6 +39,7 @@ export default function EditSubjectPage() {
                 const s = json as SubjectData;
                 setSubjectData(s);
                 setForm({
+                    code: s.code ?? '',
                     name: s.name ?? '',
                     description: s.description ?? '',
                 });
@@ -88,6 +90,10 @@ export default function EditSubjectPage() {
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium mb-1">Code *</label>
+                    <input className="w-full border rounded-md px-3 py-2 text-sm font-mono" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} required />
+                </div>
                 <div>
                     <label className="block text-sm font-medium mb-1">
                         Name *

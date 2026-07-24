@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type TimetableRow = {
@@ -20,6 +20,8 @@ type ListResponse = {
     totalPages: number;
 };
 
+type SelectOption = { id: string; name?: string; full_name?: string; code?: string; teacher_id?: string; grade_level?: string; year?: string };
+
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function TimetablesPage() {
@@ -27,12 +29,21 @@ export default function TimetablesPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [search, setSearch] = useState('');
+    const [filters, setFilters] = useState({ academic_year: '', class_id: '', teacher_id: '', subject_id: '', day_of_week: '' });
+    const [classes, setClasses] = useState<SelectOption[]>([]);
+    const [teachers, setTeachers] = useState<SelectOption[]>([]);
+    const [subjects, setSubjects] = useState<SelectOption[]>([]);
+    const [academicYears, setAcademicYears] = useState<SelectOption[]>([]);
 
     async function load() {
         try {
             setLoading(true);
             setError(null);
-            const res = await fetch(`/api/admin/timetables?page=${page}`);
+            const params = new URLSearchParams({ page: String(page) });
+            if (search.trim()) params.set('search', search.trim());
+            Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
+            const res = await fetch(`/api/admin/timetables?${params.toString()}`);
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'Failed to load timetables');
             setData(json);
@@ -45,7 +56,33 @@ export default function TimetablesPage() {
 
     useEffect(() => {
         void load();
-    }, [page]);
+    }, [page, filters]);
+
+    useEffect(() => {
+        async function loadFilters() {
+            try {
+                const [classesResponse, teachersResponse, subjectsResponse, yearsResponse] = await Promise.all([
+                    fetch('/api/admin/classes'), fetch('/api/admin/teachers'), fetch('/api/admin/subjects'), fetch('/api/admin/academic-years'),
+                ]);
+                const [classesData, teachersData, subjectsData, yearsData] = await Promise.all([
+                    classesResponse.json(), teachersResponse.json(), subjectsResponse.json(), yearsResponse.json(),
+                ]);
+                if (classesResponse.ok) setClasses(classesData.data ?? []);
+                if (teachersResponse.ok) setTeachers(teachersData.data ?? []);
+                if (subjectsResponse.ok) setSubjects(subjectsData.data ?? []);
+                if (yearsResponse.ok) setAcademicYears(yearsData.data ?? []);
+            } catch {
+                setError('Failed to load timetable filters');
+            }
+        }
+        void loadFilters();
+    }, []);
+
+    function handleSearch(event: FormEvent) {
+        event.preventDefault();
+        if (page === 1) void load();
+        else setPage(1);
+    }
 
     async function handleDelete(id: string) {
         if (!confirm('Are you sure you want to delete this timetable entry?')) return;
@@ -70,6 +107,16 @@ export default function TimetablesPage() {
                     Add Entry
                 </Link>
             </div>
+
+            <form onSubmit={handleSearch} className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
+                <input value={search} onChange={(event) => setSearch(event.target.value)} className="rounded-md border bg-background px-3 py-2 text-sm" placeholder="Search class, teacher, subject, or year" aria-label="Search timetables" />
+                <select value={filters.academic_year} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, academic_year: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All academic years</option>{academicYears.map((year) => <option key={year.id} value={year.year}>{year.year}</option>)}</select>
+                <select value={filters.class_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, class_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All classes</option>{classes.map((classOption) => <option key={classOption.id} value={classOption.id}>{classOption.name} {classOption.grade_level ? `(${classOption.grade_level})` : ''}</option>)}</select>
+                <select value={filters.teacher_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, teacher_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All teachers</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.full_name} {teacher.teacher_id ? `(${teacher.teacher_id})` : ''}</option>)}</select>
+                <select value={filters.subject_id} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, subject_id: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All subjects</option>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name} {subject.code ? `(${subject.code})` : ''}</option>)}</select>
+                <select value={filters.day_of_week} onChange={(event) => { setPage(1); setFilters((current) => ({ ...current, day_of_week: event.target.value })); }} className="rounded-md border bg-background px-3 py-2 text-sm"><option value="">All days</option>{DAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}</select>
+                <button type="submit" className="w-fit rounded-md border px-4 py-2 text-sm font-medium">Search</button>
+            </form>
 
             {loading && <p>Loading timetable schedule...</p>}
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -104,6 +151,7 @@ export default function TimetablesPage() {
                                         </td>
                                     </tr>
                                 ))}
+                                {data.data.length === 0 && <tr><td colSpan={6} className="px-3 py-4 text-center text-muted-foreground">No timetable entries found.</td></tr>}
                             </tbody>
                         </table>
                     </div>

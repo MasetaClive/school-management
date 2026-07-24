@@ -4,6 +4,7 @@ import {
     createClassTeacherSchema,
     updateClassTeacherSchema,
     listClassTeachersQuerySchema,
+    classTeacherIdParamSchema,
 } from './classTeacher.validation';
 import { ClassTeacherService, ClassTeacherServiceError } from './classTeacher.service';
 
@@ -18,6 +19,9 @@ class ApiError extends Error {
 function toJsonError(e: unknown) {
     if (e instanceof ClassTeacherServiceError || e instanceof ApiError) {
         return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
+        return NextResponse.json({ error: (e as Error).message }, { status: 400 });
     }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
 }
@@ -48,7 +52,7 @@ export const ClassTeacherController = {
     async getById(req: NextRequest, { params }: { params: { id: string } }) {
         try {
             await ensureAdmin();
-            const assignment = await ClassTeacherService.getClassTeacherById(params.id);
+            const assignment = await ClassTeacherService.getClassTeacherById(classTeacherIdParamSchema.parse(params.id));
             return NextResponse.json(assignment, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -71,10 +75,11 @@ export const ClassTeacherController = {
     async update(req: NextRequest, { params }: { params: { id: string } }) {
         try {
             await ensureAdmin();
+            const assignmentId = classTeacherIdParamSchema.parse(params.id);
             const body = await req.json();
             const input = updateClassTeacherSchema.parse(body);
 
-            const assignment = await ClassTeacherService.updateClassTeacher(params.id, input);
+            const assignment = await ClassTeacherService.updateClassTeacher(assignmentId, input);
             return NextResponse.json({ data: assignment }, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -84,7 +89,7 @@ export const ClassTeacherController = {
     async delete(req: NextRequest, { params }: { params: { id: string } }) {
         try {
             await ensureAdmin();
-            await ClassTeacherService.deleteClassTeacher(params.id);
+            await ClassTeacherService.deleteClassTeacher(classTeacherIdParamSchema.parse(params.id));
             return NextResponse.json({ success: true }, { status: 200 });
         } catch (e) {
             return toJsonError(e);

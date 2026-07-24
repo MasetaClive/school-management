@@ -9,8 +9,8 @@ type DashboardData = {
     stats: {
         attendanceRate: number;
         pendingHomework: number;
-        gpa: string;
-        credits: string;
+        gpa: null;
+        credits: null;
     };
     recentResults: any[];
     todaySchedule: any[];
@@ -53,10 +53,10 @@ export default function StudentDashboardPage() {
     }
 
     const stats = [
-        { label: 'GPA', value: data?.stats.gpa || '0.0', icon: '🏆', color: 'text-amber-500', bg: 'bg-amber-50' },
+        { label: 'GPA', value: data?.stats.gpa ?? 'Not available', icon: '🏆', color: 'text-amber-500', bg: 'bg-amber-50' },
         { label: 'Attendance', value: `${data?.stats.attendanceRate}%`, icon: '📅', color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Homework', value: `${data?.stats.pendingHomework} Active`, icon: '📝', color: 'text-rose-500', bg: 'bg-rose-50' },
-        { label: 'Credits', value: data?.stats.credits || '0', icon: '⭐', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        { label: 'Credits', value: data?.stats.credits ?? 'Not available', icon: '⭐', color: 'text-emerald-600', bg: 'bg-emerald-50' },
     ];
 
     const quickLinks = [
@@ -225,28 +225,6 @@ export default function StudentDashboardPage() {
                 <div className="space-y-10">
                     <NoticeBoard />
 
-                    {/* Progress Card */}
-                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-100 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/10 rounded-full blur-[80px]" />
-                        <h3 className="text-xs font-black uppercase tracking-widest mb-8 text-indigo-300">Target Efficiency</h3>
-                        <div className="flex flex-col items-center gap-6 py-4">
-                            <div className="relative">
-                                <svg className="w-40 h-40 transform -rotate-90">
-                                    <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="16" fill="transparent" className="text-white/10" />
-                                    <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="16" fill="transparent" strokeDasharray={439.8} strokeDashoffset={439.8 * (1 - 0.85)} className="text-rose-500 transition-all duration-1000" strokeLinecap="round" />
-                                </svg>
-                                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-4xl font-black tracking-tighter">85%</span>
-                                    <span className="text-[9px] font-black uppercase text-indigo-300">Target Range</span>
-                                </div>
-                            </div>
-                            <div className="text-center space-y-2">
-                                <p className="text-[10px] font-black uppercase text-indigo-300 tracking-[0.2em]">Curriculum Velocity</p>
-                                <p className="text-xs font-medium text-slate-400 px-4">Pacing 12% above department median.</p>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Quick Support Card */}
                     <div className="bg-indigo-50 border border-indigo-100 rounded-[2.5rem] p-8 text-center space-y-6">
                         <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center text-2xl mx-auto shadow-lg shadow-indigo-100">
@@ -258,9 +236,6 @@ export default function StudentDashboardPage() {
                                 Reach out to academic support or access the knowledge base.
                             </p>
                         </div>
-                        <button className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100">
-                            Connect Now
-                        </button>
                     </div>
                 </div>
             </div>

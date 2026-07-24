@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-type SelectOption = { id: string; name?: string; full_name?: string; code?: string };
+type SelectOption = { id: string; name?: string; full_name?: string; grade_level?: string; teacher_id?: string; year?: string };
 
 export default function CreateClassTeacherPage() {
     const router = useRouter();
 
     const [classes, setClasses] = useState<SelectOption[]>([]);
     const [teachers, setTeachers] = useState<SelectOption[]>([]);
+    const [academicYears, setAcademicYears] = useState<SelectOption[]>([]);
     const [loadingContext, setLoadingContext] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -18,19 +19,22 @@ export default function CreateClassTeacherPage() {
         class_id: '',
         teacher_id: '',
         is_homeroom: false,
-        academic_year: new Date().getFullYear().toString(),
+        academic_year: '',
     });
 
     useEffect(() => {
         async function init() {
             try {
-                const [resC, resT] = await Promise.all([
+                const [resC, resT, resY] = await Promise.all([
                     fetch('/api/admin/classes'),
                     fetch('/api/admin/teachers'),
+                    fetch('/api/admin/academic-years'),
                 ]);
-                const [dataC, dataT] = await Promise.all([resC.json(), resT.json()]);
+                const [dataC, dataT, dataY] = await Promise.all([resC.json(), resT.json(), resY.json()]);
+                if (!resC.ok || !resT.ok || !resY.ok) throw new Error('Failed to load assignment options');
                 setClasses(dataC.data || []);
                 setTeachers(dataT.data || []);
+                setAcademicYears(dataY.data || []);
             } catch (e) {
                 setError('Failed to load classes or teachers');
             } finally {
@@ -96,7 +100,7 @@ export default function CreateClassTeacherPage() {
                             <option value="">Select Class...</option>
                             {classes.map((c) => (
                                 <option key={c.id} value={c.id}>
-                                    {c.name}
+                                    {c.name} {c.grade_level ? `(${c.grade_level})` : ''}
                                 </option>
                             ))}
                         </select>
@@ -113,7 +117,7 @@ export default function CreateClassTeacherPage() {
                             <option value="">Select Teacher...</option>
                             {teachers.map((t) => (
                                 <option key={t.id} value={t.id}>
-                                    {t.full_name}
+                                    {t.full_name} {t.teacher_id ? `(${t.teacher_id})` : ''}
                                 </option>
                             ))}
                         </select>
@@ -121,14 +125,15 @@ export default function CreateClassTeacherPage() {
 
                     <div className="space-y-2">
                         <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Academic Year *</label>
-                        <input
-                            type="text"
+                        <select
                             className="w-full border rounded-md px-3 py-2 text-sm bg-background focus:ring-2 focus:ring-primary/20 outline-none transition font-medium"
                             value={form.academic_year}
                             onChange={(e) => setForm((f) => ({ ...f, academic_year: e.target.value }))}
-                            placeholder="e.g. 2024/2025"
                             required
-                        />
+                        >
+                            <option value="">Select academic year...</option>
+                            {academicYears.map((year) => <option key={year.id} value={year.year}>{year.year}</option>)}
+                        </select>
                     </div>
 
                     <div className="flex items-center space-x-2 pt-6">
@@ -156,14 +161,6 @@ export default function CreateClassTeacherPage() {
                 </div>
             </form>
 
-            <div className="rounded-md bg-blue-50/50 p-4 border border-blue-100">
-                <h4 className="text-xs font-bold text-blue-800 uppercase mb-2">Assignment Rules</h4>
-                <ul className="text-[11px] text-blue-700/80 space-y-1 list-disc pl-4 italic">
-                    <li>A teacher can only be assigned to a specific class once per academic year.</li>
-                    <li>Each class can have at most one homeroom teacher per academic year.</li>
-                    <li>Assigning a second homeroom teacher will result in a validation error.</li>
-                </ul>
-            </div>
         </div>
     );
 }

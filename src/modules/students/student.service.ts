@@ -1,4 +1,5 @@
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { UserService } from '@/modules/users/user.service';
 import type {
   CreateStudentInput,
   UpdateStudentInput,
@@ -81,6 +82,7 @@ export class StudentService {
       admission_date,
       academic_year,
       create_account,
+      password_mode: _passwordMode,
       password,
     } = input;
 
@@ -101,12 +103,21 @@ export class StudentService {
     }
 
     const supabase = await createClient();
-    const adminSupabase = await createAdminClient();
+    let account = null;
 
-    // 1. Create Student Profile
+    if (create_account) {
+      account = await UserService.provisionAccount({
+        role: 'student',
+        username: student_id,
+        fullName: full_name,
+        password,
+      });
+    }
+
     const { data: student, error: studentError } = await supabase
       .from('students')
       .insert({
+        user_id: account?.userId ?? null,
         student_id,
         full_name,
         date_of_birth: date_of_birth ?? null,
@@ -124,53 +135,13 @@ export class StudentService {
       .single();
 
     if (studentError) {
+      if (account) {
+        await UserService.rollbackProvisionedAccount(account.userId);
+      }
       throw new StudentServiceError(`Failed to create student: ${studentError.message}`, 500);
     }
 
-    // 2. Automated Account Creation
-    if (create_account && password) {
-      const email = `${student_id.toLowerCase()}@school.local`;
-      
-      // A. Create Auth User
-      const { data: authUser, error: authError } = await adminSupabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name, role: 'student' }
-      });
-
-      if (authError) {
-        // Cleanup student profile if auth fails? Or just report error.
-        // For now, we report.
-        throw new StudentServiceError(`Student created, but failed to create login account: ${authError.message}`, 500);
-      }
-
-      const userId = authUser.user.id;
-
-      // B. Create Public User Record
-      const { error: userError } = await adminSupabase
-        .from('users')
-        .insert({
-          id: userId,
-          email,
-          full_name,
-          role: 'student',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-
-      if (userError) {
-         throw new StudentServiceError(`Student and Auth created, but failed to sync public user: ${userError.message}`, 500);
-      }
-
-      // C. Link User ID back to Student Profile
-      await adminSupabase
-        .from('students')
-        .update({ user_id: userId })
-        .eq('id', student.id);
-    }
-
-    return student;
+    return { profile: student, account };
   }
 
   static async getStudentById(id: string) {
@@ -305,7 +276,9 @@ export class StudentService {
       .order('full_name', { ascending: true });
 
     if (query.search) {
-      req = req.ilike('full_name', `%${query.search}%`);
+      req = req.or(
+        `full_name.ilike.%${query.search}%,student_id.ilike.%${query.search}%`,
+      );
     }
     if (query.class_id) {
       req = req.eq('class_id', query.class_id);
@@ -374,9 +347,10 @@ export class StudentService {
         .select(`
           id,
           subject:subjects(name, code),
-          time_slot:time_slots(start_time, end_time, day_of_week)
+          time_slot:time_slots!inner(start_time, end_time, day_of_week)
         `)
         .eq('class_id', profile.class_id)
+        .eq('academic_year', profile.academic_year)
         .eq('time_slot.day_of_week', new Date().getDay())
     ]);
 
@@ -390,12 +364,11 @@ export class StudentService {
       stats: {
         attendanceRate,
         pendingHomework: homeworkRes.count || 0,
-        gpa: '3.8', // Placeholder for now
-        credits: '42', // Placeholder
+        gpa: null,
+        credits: null,
       },
       recentResults: resultsRes.data || [],
       todaySchedule: scheduleRes.data || [],
     };
   }
 }
-

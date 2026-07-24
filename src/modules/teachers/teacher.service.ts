@@ -1,4 +1,6 @@
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { UserService } from '@/modules/users/user.service';
+import type { CreateTeacherInput, UpdateTeacherInput } from './teacher.validation';
 
 export class TeacherServiceError extends Error {
     status: number;
@@ -60,74 +62,44 @@ export class TeacherService {
         return data;
     }
 
-    static async createTeacher(input: any) {
-        const { create_account, password, teacher_id, full_name, email: inputEmail, ...rest } = input;
+    static async createTeacher(input: CreateTeacherInput) {
+        const { create_account, password_mode: _passwordMode, password, teacher_id, full_name, email: inputEmail, ...rest } = input;
         
         const supabase = await createClient();
-        const adminSupabase = await createAdminClient();
+        let account = null;
 
-        // 1. Create Teacher Profile
+        if (create_account) {
+            account = await UserService.provisionAccount({
+                role: 'teacher',
+                username: teacher_id,
+                fullName: full_name,
+                password,
+            });
+        }
+
         const { data: teacher, error: teacherError } = await supabase
             .from('teachers')
             .insert({
                 teacher_id,
                 full_name,
                 email: inputEmail,
+                user_id: account?.userId ?? null,
                 ...rest
             })
             .select('*')
             .single();
 
         if (teacherError) {
+            if (account) await UserService.rollbackProvisionedAccount(account.userId);
             if (teacherError.code === '23505') throw new TeacherServiceError('Teacher ID already exists', 409);
             throw new TeacherServiceError(`Failed to create teacher: ${teacherError.message}`, 500);
         }
 
-        // 2. Automated Account Creation
-        if (create_account && password) {
-            const email = inputEmail || `${teacher_id.toLowerCase()}@school.local`;
-
-            // A. Create Auth User
-            const { data: authUser, error: authError } = await adminSupabase.auth.admin.createUser({
-                email,
-                password,
-                email_confirm: true,
-                user_metadata: { full_name, role: 'teacher' }
-            });
-
-            if (authError) {
-                throw new TeacherServiceError(`Teacher created, but failed to create login account: ${authError.message}`, 500);
-            }
-
-            const userId = authUser.user.id;
-
-            // B. Create Public User Record
-            const { error: userError } = await adminSupabase
-                .from('users')
-                .insert({
-                    id: userId,
-                    email,
-                    full_name,
-                    role: 'teacher',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                });
-
-            if (userError) {
-                throw new TeacherServiceError(`Teacher and Auth created, but failed to sync public user: ${userError.message}`, 500);
-            }
-
-            // C. Link User ID back to Teacher Profile
-            await adminSupabase
-                .from('teachers')
-                .update({ user_id: userId })
-                .eq('id', teacher.id);
-        }
-
-        return teacher;
+        return { profile: teacher, account };
     }
 
-    static async updateTeacher(id: string, input: any) {
+    static async updateTeacher(id: string, input: UpdateTeacherInput) {
+        await this.getTeacherById(id);
         const supabase = await createClient();
         const { data, error } = await supabase
             .from('teachers')
@@ -141,13 +113,40 @@ export class TeacherService {
     }
 
     static async deleteTeacher(id: string) {
+        const teacher = await this.getTeacherById(id);
         const supabase = await createClient();
+
+        const [classTeacherCheck, subjectAssignmentCheck] = await Promise.all([
+            supabase
+                .from('class_teachers')
+                .select('id', { count: 'exact', head: true })
+                .eq('teacher_id', id),
+            supabase
+                .from('subject_assignments')
+                .select('id', { count: 'exact', head: true })
+                .eq('teacher_id', id),
+        ]);
+
+        if (classTeacherCheck.error || subjectAssignmentCheck.error) {
+            throw new TeacherServiceError('Failed to check teacher assignments', 500);
+        }
+        if ((classTeacherCheck.count ?? 0) > 0 || (subjectAssignmentCheck.count ?? 0) > 0) {
+            throw new TeacherServiceError(
+                'Cannot delete teacher with active class or subject assignments.',
+                409,
+            );
+        }
+
         const { error } = await supabase
             .from('teachers')
             .delete()
             .eq('id', id);
 
         if (error) throw new TeacherServiceError('Failed to delete teacher', 500);
+
+        if (teacher.user_id) {
+            await UserService.rollbackProvisionedAccount(teacher.user_id);
+        }
         return { success: true };
     }
 
@@ -175,7 +174,7 @@ export class TeacherService {
                 id,
                 class:classes(name),
                 subject:subjects(name, code),
-                time_slot:time_slots(start_time, end_time)
+                time_slot:time_slots!inner(start_time, end_time, day_of_week)
             `)
             .eq('teacher_id', teacherId)
             .eq('time_slot.day_of_week', dayOfWeek);

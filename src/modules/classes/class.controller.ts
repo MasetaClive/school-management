@@ -4,6 +4,7 @@ import {
     createClassSchema,
     updateClassSchema,
     listClassesQuerySchema,
+    classIdParamSchema,
 } from './class.validation';
 import { ClassService, ClassServiceError } from './class.service';
 
@@ -72,7 +73,7 @@ export const ClassController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const classData = await ClassService.getClassById(id);
+            const classData = await ClassService.getClassById(classIdParamSchema.parse(id));
             return NextResponse.json(classData, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -85,7 +86,7 @@ export const ClassController = {
             const body = await req.json();
             const input = updateClassSchema.parse(body);
 
-            const classData = await ClassService.updateClass(id, input);
+            const classData = await ClassService.updateClass(classIdParamSchema.parse(id), input);
             return NextResponse.json(classData, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -96,7 +97,7 @@ export const ClassController = {
         try {
             await ensureAdmin();
 
-            const result = await ClassService.deleteClass(id);
+            const result = await ClassService.deleteClass(classIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);

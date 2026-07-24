@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type ExamRow = {
@@ -26,12 +26,15 @@ export default function ExamsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [search, setSearch] = useState('');
 
     async function load() {
         try {
             setLoading(true);
             setError(null);
-            const res = await fetch(`/api/admin/exams?page=${page}`);
+            const params = new URLSearchParams({ page: String(page) });
+            if (search.trim()) params.set('search', search.trim());
+            const res = await fetch(`/api/admin/exams?${params.toString()}`);
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'Failed to load exams');
             setData(json);
@@ -45,6 +48,11 @@ export default function ExamsPage() {
     useEffect(() => {
         void load();
     }, [page]);
+
+    function handleSearch(event: FormEvent) {
+        event.preventDefault();
+        if (page === 1) void load(); else setPage(1);
+    }
 
     async function handleDelete(id: string) {
         if (!confirm('Are you sure you want to delete this exam?')) return;
@@ -69,6 +77,8 @@ export default function ExamsPage() {
                     Create Exam
                 </Link>
             </div>
+
+            <form onSubmit={handleSearch} className="flex gap-3 rounded-lg border bg-card p-4"><input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" placeholder="Search exam, class, subject, or teacher" aria-label="Search exams" /><button type="submit" className="rounded-md border px-4 py-2 text-sm font-medium">Search</button></form>
 
             {loading && <p>Loading exams...</p>}
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}

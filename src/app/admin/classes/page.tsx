@@ -108,7 +108,7 @@ export default function ClassesPage() {
                             <thead className="bg-muted">
                                 <tr>
                                     <th className="px-3 py-2 text-left">Class Name</th>
-                                    <th className="px-3 py-2 text-left">Grade Level</th>
+                                    <th className="px-3 py-2 text-left">Form </th>
                                     <th className="px-3 py-2 text-left">Academic Year</th>
                                     <th className="px-3 py-2 text-left">Created At</th>
                                     <th className="px-3 py-2 text-left">Actions</th>

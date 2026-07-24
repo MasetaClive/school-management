@@ -4,8 +4,10 @@ import {
     createTeacherSchema,
     updateTeacherSchema,
     listTeachersQuerySchema,
+    teacherIdParamSchema,
 } from './teacher.validation';
 import { TeacherService, TeacherServiceError } from './teacher.service';
+import { UserServiceError } from '@/modules/users/user.service';
 
 class ApiError extends Error {
     status: number;
@@ -24,7 +26,7 @@ async function ensureAdmin() {
 }
 
 function toJsonError(e: unknown) {
-    if (e instanceof ApiError || e instanceof TeacherServiceError) {
+    if (e instanceof ApiError || e instanceof TeacherServiceError || e instanceof UserServiceError) {
         return NextResponse.json({ error: e.message }, { status: e.status });
     }
     if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
@@ -72,7 +74,7 @@ export const TeacherController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const teacher = await TeacherService.getTeacherById(id);
+            const teacher = await TeacherService.getTeacherById(teacherIdParamSchema.parse(id));
             return NextResponse.json(teacher, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -85,7 +87,7 @@ export const TeacherController = {
             const body = await req.json();
             const input = updateTeacherSchema.parse(body);
 
-            const teacher = await TeacherService.updateTeacher(id, input);
+            const teacher = await TeacherService.updateTeacher(teacherIdParamSchema.parse(id), input);
             return NextResponse.json(teacher, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -95,7 +97,7 @@ export const TeacherController = {
     async delete(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const result = await TeacherService.deleteTeacher(id);
+            const result = await TeacherService.deleteTeacher(teacherIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);

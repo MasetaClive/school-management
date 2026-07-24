@@ -16,19 +16,32 @@ export class ResultServiceError extends Error {
 const PAGE_SIZE = 20;
 
 export class ResultService {
-    static async createResult(input: CreateResultInput) {
+    private static calculateGrade(marks: number, maximum: number) {
+        const percentage = (marks / maximum) * 100;
+        if (percentage >= 80) return 'A';
+        if (percentage >= 70) return 'B';
+        if (percentage >= 60) return 'C';
+        if (percentage >= 50) return 'D';
+        return 'F';
+    }
+
+    private static async getEligibleExamAndStudent(examId: string, studentId: string) {
         const supabase = await createClient();
-
-        // 1. Check if exam exists and get max_marks
-        const { data: exam, error: examError } = await supabase
-            .from('exams')
-            .select('max_marks')
-            .eq('id', input.exam_id)
-            .single();
-
-        if (examError || !exam) {
-            throw new ResultServiceError('Exam not found', 404);
+        const [exam, student] = await Promise.all([
+            supabase.from('exams').select('id, max_marks, class_id, academic_year').eq('id', examId).maybeSingle(),
+            supabase.from('students').select('id, class_id, academic_year').eq('id', studentId).maybeSingle(),
+        ]);
+        if (exam.error || student.error) throw new ResultServiceError('Failed to validate result relationships', 500);
+        if (!exam.data) throw new ResultServiceError('Exam not found', 404);
+        if (!student.data) throw new ResultServiceError('Student not found', 404);
+        if (student.data.class_id !== exam.data.class_id || student.data.academic_year !== exam.data.academic_year) {
+            throw new ResultServiceError('Student is not eligible for this exam', 409);
         }
+        return { exam: exam.data, student: student.data };
+    }
+    static async createResult(input: CreateResultInput) {
+        const { exam } = await this.getEligibleExamAndStudent(input.exam_id, input.student_id);
+        const supabase = await createClient();
 
         // 2. Validate marks_obtained
         if (input.marks_obtained > exam.max_marks) {
@@ -55,7 +68,7 @@ export class ResultService {
                 exam_id: input.exam_id,
                 student_id: input.student_id,
                 marks_obtained: input.marks_obtained,
-                grade: input.grade || null,
+                grade: this.calculateGrade(input.marks_obtained, exam.max_marks),
                 remarks: input.remarks || null,
             })
             .select('*')
@@ -91,13 +104,13 @@ export class ResultService {
     static async updateResult(id: string, input: UpdateResultInput) {
         const supabase = await createClient();
 
-        // Fetch existing result to get exam info
         const existing = await this.getResultById(id);
+        const { exam } = await this.getEligibleExamAndStudent(existing.exam_id, existing.student_id);
 
         // If marks are being updated, validate against max_marks
         if (input.marks_obtained !== undefined) {
-            if (input.marks_obtained > (existing.exam as any).max_marks) {
-                throw new ResultServiceError(`Marks obtained (${input.marks_obtained}) cannot exceed maximum marks (${(existing.exam as any).max_marks})`, 400);
+            if (input.marks_obtained > exam.max_marks) {
+                throw new ResultServiceError(`Marks obtained (${input.marks_obtained}) cannot exceed maximum marks (${exam.max_marks})`, 400);
             }
         }
 
@@ -105,7 +118,7 @@ export class ResultService {
             .from('results')
             .update({
                 marks_obtained: input.marks_obtained ?? existing.marks_obtained,
-                grade: input.grade !== undefined ? input.grade : existing.grade,
+                grade: this.calculateGrade(input.marks_obtained ?? existing.marks_obtained, exam.max_marks),
                 remarks: input.remarks !== undefined ? input.remarks : existing.remarks,
             })
             .eq('id', id)
@@ -120,6 +133,7 @@ export class ResultService {
     }
 
     static async deleteResult(id: string) {
+        await this.getResultById(id);
         const supabase = await createClient();
         const { error } = await supabase.from('results').delete().eq('id', id);
 
@@ -148,6 +162,19 @@ export class ResultService {
 
         if (query.student_id) req = req.eq('student_id', query.student_id);
         if (query.exam_id) req = req.eq('exam_id', query.exam_id);
+        if (query.search) {
+            const term = query.search.replace(/[,%_()]/g, '');
+            if (!term) return { data: [], page, pageSize: PAGE_SIZE, total: 0, totalPages: 1 };
+            const pattern = `%${term}%`;
+            const [students, exams] = await Promise.all([
+                supabase.from('students').select('id').or(`full_name.ilike.${pattern},student_id.ilike.${pattern}`),
+                supabase.from('exams').select('id').ilike('name', pattern),
+            ]);
+            if (students.error || exams.error) throw new ResultServiceError('Failed to search results', 500);
+            const filters = [...(students.data ?? []).map(({ id }) => `student_id.eq.${id}`), ...(exams.data ?? []).map(({ id }) => `exam_id.eq.${id}`)];
+            if (!filters.length) return { data: [], page, pageSize: PAGE_SIZE, total: 0, totalPages: 1 };
+            req = req.or(filters.join(','));
+        }
 
         const { data, error, count } = await req.range(from, to);
 

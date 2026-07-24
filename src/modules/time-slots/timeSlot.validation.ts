@@ -39,9 +39,12 @@ export const listTimeSlotsQuerySchema = z.object({
         .transform((v) => {
             const n = Number(v);
             return Number.isNaN(n) || n < 1 ? 1 : n;
-        })
-        .optional(),
+    })
+    .optional(),
+    search: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Search time must use HH:MM').optional(),
 });
+
+export const timeSlotIdParamSchema = z.string().uuid('Invalid time slot ID');
 
 export type CreateTimeSlotInput = z.infer<typeof createTimeSlotSchema>;
 export type UpdateTimeSlotInput = z.infer<typeof updateTimeSlotSchema>;

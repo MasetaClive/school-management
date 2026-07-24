@@ -4,8 +4,10 @@ import {
     createParentSchema,
     updateParentSchema,
     listParentsQuerySchema,
+    parentIdParamSchema,
 } from './parent.validation';
 import { ParentService, ParentServiceError } from './parent.service';
+import { UserServiceError } from '@/modules/users/user.service';
 
 class ApiError extends Error {
     status: number;
@@ -24,7 +26,7 @@ async function ensureAdmin() {
 }
 
 function toJsonError(e: unknown) {
-    if (e instanceof ApiError || e instanceof ParentServiceError) {
+    if (e instanceof ApiError || e instanceof ParentServiceError || e instanceof UserServiceError) {
         return NextResponse.json({ error: e.message }, { status: e.status });
     }
     if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
@@ -72,7 +74,7 @@ export const ParentController = {
     async getOne(req: NextRequest, id: string) {
         try {
             await ensureAdmin();
-            const parent = await ParentService.getParentById(id);
+            const parent = await ParentService.getParentById(parentIdParamSchema.parse(id));
             return NextResponse.json(parent, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -85,7 +87,7 @@ export const ParentController = {
             const body = await req.json();
             const input = updateParentSchema.parse(body);
 
-            const parent = await ParentService.updateParent(id, input);
+            const parent = await ParentService.updateParent(parentIdParamSchema.parse(id), input);
             return NextResponse.json(parent, { status: 200 });
         } catch (e) {
             return toJsonError(e);
@@ -96,7 +98,7 @@ export const ParentController = {
         try {
             await ensureAdmin();
 
-            const result = await ParentService.deleteParent(id);
+            const result = await ParentService.deleteParent(parentIdParamSchema.parse(id));
             return NextResponse.json(result, { status: 200 });
         } catch (e) {
             return toJsonError(e);
