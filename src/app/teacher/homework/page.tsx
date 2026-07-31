@@ -8,6 +8,7 @@ type Homework = {
     title: string;
     description: string | null;
     due_date: string;
+    attachment_url: string | null;
     class: { name: string } | null;
     subject: { name: string; code: string } | null;
 };
@@ -108,6 +109,16 @@ export default function TeacherHomeworkPage() {
                                             {new Date(h.due_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                                         </td>
                                         <td className="px-6 py-4 text-right space-x-4">
+                                            {h.attachment_url && (
+                                                <a
+                                                    href={h.attachment_url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-emerald-600 hover:text-emerald-900 font-black uppercase tracking-wider text-[10px] hover:underline"
+                                                >
+                                                    Download
+                                                </a>
+                                            )}
                                             <Link 
                                                 href={`/teacher/homework/${h.id}/edit`} 
                                                 className="text-indigo-600 hover:text-indigo-900 font-black uppercase tracking-wider text-[10px] hover:underline"

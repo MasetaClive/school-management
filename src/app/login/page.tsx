@@ -4,6 +4,14 @@ import { Suspense, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
+function getClientOrNull() {
+  try {
+    return createClient();
+  } catch {
+    return null;
+  }
+}
+
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -18,7 +26,7 @@ function LoginPageContent() {
   const [form, setForm] = useState({ identifier: '', password: '' });
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
-  const supabase = createClient();
+  const supabase = getClientOrNull();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,6 +42,12 @@ function LoginPageContent() {
     if (nextFieldErrors.identifier || nextFieldErrors.password) {
       setFieldErrors(nextFieldErrors);
       setError(null);
+      return;
+    }
+
+    if (!supabase) {
+      setError('Authentication is currently unavailable because Supabase is not configured.');
+      setFieldErrors({ identifier: '', password: '' });
       return;
     }
 
@@ -138,7 +152,10 @@ function LoginPageContent() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-muted/30 to-primary/10 px-4 py-8 sm:px-6">
+    <main
+      suppressHydrationWarning
+      className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-muted/30 to-primary/10 px-4 py-8 sm:px-6"
+    >
       <section
         aria-labelledby="login-heading"
         className="w-full max-w-md rounded-2xl border border-border/70 bg-card p-6 shadow-xl shadow-primary/5 sm:p-8"

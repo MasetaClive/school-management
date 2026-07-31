@@ -446,6 +446,11 @@ export default function TeacherDashboardPage() {
                             >
                                 Create New Homework
                             </Link>
+                            <Link href="/teacher/timetable" className="block w-full py-4 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl text-center font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 transition-colors">My Timetable</Link>
+                            <Link href="/teacher/attendance" className="block w-full py-4 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl text-center font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 transition-colors">Attendance</Link>
+                            <Link href="/teacher/exams" className="block w-full py-4 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl text-center font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 transition-colors">My Exams</Link>
+                            <Link href="/teacher/results" className="block w-full py-4 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl text-center font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 transition-colors">Results</Link>
+                            <Link href="/teacher/profile" className="block w-full py-4 bg-slate-50 border border-slate-100 text-slate-700 rounded-2xl text-center font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 transition-colors">My Profile</Link>
                         </div>
                     </div>
                 </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import FileUpload from '@/components/shared/FileUpload';
 
 type Class = { id: string; name: string; academic_year: string };
 type Subject = { id: string; name: string; code: string };
@@ -23,6 +24,7 @@ export default function CreateHomeworkPage() {
         attachment_url: '',
         academic_year: ''
     });
+    const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
     useEffect(() => {
         async function loadData() {
@@ -121,6 +123,12 @@ export default function CreateHomeworkPage() {
         }
     }
 
+    useEffect(() => {
+        if (uploadingAttachment) {
+            return;
+        }
+    }, [uploadingAttachment]);
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[50vh]">
@@ -190,27 +198,30 @@ export default function CreateHomeworkPage() {
                     />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Due Date</label>
-                        <input 
-                            type="date" 
-                            value={form.due_date}
-                            onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                            className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all"
-                            required
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Attachment URL (Optional)</label>
-                        <input 
-                            type="url" 
-                            value={form.attachment_url}
-                            onChange={(e) => setForm({ ...form, attachment_url: e.target.value })}
-                            className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all"
-                            placeholder="https://example.com/material.pdf"
-                        />
-                    </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Due Date</label>
+                    <input 
+                        type="date" 
+                        value={form.due_date}
+                        onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                        className="w-full rounded-2xl border-2 border-indigo-50/50 p-4 text-xs font-bold text-slate-700 bg-white focus:border-indigo-500 outline-none transition-all"
+                        required
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Upload Attachment (Optional)</label>
+                    <FileUpload
+                        bucket="homework-attachments"
+                        onUploadComplete={(url) => {
+                            setForm((prev) => ({ ...prev, attachment_url: url }));
+                            setUploadingAttachment(false);
+                        }}
+                        label="Choose file"
+                    />
+                    {form.attachment_url && (
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Attachment ready to save.</p>
+                    )}
                 </div>
 
                 {error && (
@@ -229,7 +240,7 @@ export default function CreateHomeworkPage() {
                     </button>
                     <button 
                         type="submit" 
-                        disabled={saving || subjects.length === 0}
+                        disabled={saving || subjects.length === 0 || uploadingAttachment}
                         className="px-8 py-4 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-indigo-600 disabled:opacity-50 transition-all hover:shadow-lg hover:shadow-indigo-100"
                     >
                         {saving ? 'Creating...' : 'Create Assignment'}
