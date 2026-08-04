@@ -226,9 +226,9 @@ export default function EditHomeworkPage({ params }: EditHomeworkPageProps) {
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Upload Attachment (Optional)</label>
                     <FileUpload
                         bucket="homework-attachments"
+                        onUploadStateChange={setUploadingAttachment}
                         onUploadComplete={(url) => {
                             setForm((prev) => ({ ...prev, attachment_url: url }));
-                            setUploadingAttachment(false);
                         }}
                         label="Choose file"
                     />

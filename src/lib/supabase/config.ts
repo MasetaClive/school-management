@@ -1,10 +1,12 @@
-function readEnv(name: string) {
-  return process.env[name]?.trim() || '';
-}
+// Next.js only exposes browser-safe environment variables when their names are
+// referenced directly. Dynamic access (process.env[name]) leaves these values
+// unavailable in client components such as the login page.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
 
 export function getSupabaseBrowserEnv() {
-  const url = readEnv('NEXT_PUBLIC_SUPABASE_URL');
-  const anonKey = readEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  const url = supabaseUrl;
+  const anonKey = supabaseAnonKey;
 
   if (!url || !anonKey) {
     throw new Error(
@@ -16,8 +18,8 @@ export function getSupabaseBrowserEnv() {
 }
 
 export function getSupabaseServerEnv() {
-  const url = readEnv('NEXT_PUBLIC_SUPABASE_URL');
-  const anonKey = readEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  const url = supabaseUrl;
+  const anonKey = supabaseAnonKey;
 
   if (!url || !anonKey) {
     throw new Error(
@@ -29,8 +31,8 @@ export function getSupabaseServerEnv() {
 }
 
 export function getSupabaseAdminEnv() {
-  const url = readEnv('NEXT_PUBLIC_SUPABASE_URL');
-  const serviceRoleKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const url = supabaseUrl;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || '';
 
   if (!url || !serviceRoleKey) {
     throw new Error(

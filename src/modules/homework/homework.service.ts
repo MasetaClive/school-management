@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseServerEnv } from '@/lib/supabase/config';
 import type { CreateHomeworkInput, UpdateHomeworkInput, ListHomeworkQuery } from './homework.validation';
 
 export class HomeworkServiceError extends Error {
@@ -12,6 +13,26 @@ export class HomeworkServiceError extends Error {
 const PAGE_SIZE = 20;
 
 export class HomeworkService {
+    private static ensureAttachmentIsHomeworkUpload(value: string | null | undefined) {
+        if (!value) return;
+
+        let attachment: URL;
+        let supabaseUrl: URL;
+        try {
+            attachment = new URL(value);
+            supabaseUrl = new URL(getSupabaseServerEnv().url);
+        } catch {
+            throw new HomeworkServiceError('Invalid homework attachment URL', 400);
+        }
+
+        if (
+            attachment.origin !== supabaseUrl.origin ||
+            !attachment.pathname.startsWith('/storage/v1/object/public/homework-attachments/')
+        ) {
+            throw new HomeworkServiceError('Homework attachments must be uploaded from your device', 400);
+        }
+    }
+
     private static normaliseDueDate(value: string) {
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) throw new HomeworkServiceError('Invalid due date', 400);
@@ -71,6 +92,7 @@ export class HomeworkService {
 
     static async createHomework(input: CreateHomeworkInput) {
         const dueDate = this.normaliseDueDate(input.due_date);
+        this.ensureAttachmentIsHomeworkUpload(input.attachment_url);
         await this.ensureRelationshipsAreValid(input.class_id, input.subject_id, input.teacher_id, input.academic_year, dueDate);
         await this.ensureNoDuplicate(input.class_id, input.subject_id, input.teacher_id, input.title, dueDate, input.academic_year);
         const supabase = await createClient();
@@ -113,6 +135,7 @@ export class HomeworkService {
         const academicYear = input.academic_year ?? existing.academic_year;
         const dueDate = this.normaliseDueDate(input.due_date ?? existing.due_date);
         const title = input.title ?? existing.title;
+        this.ensureAttachmentIsHomeworkUpload(input.attachment_url);
         await this.ensureRelationshipsAreValid(classId, subjectId, teacherId, academicYear, dueDate);
         await this.ensureNoDuplicate(classId, subjectId, teacherId, title, dueDate, academicYear, id);
         const supabase = await createClient();

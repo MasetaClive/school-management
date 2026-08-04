@@ -10,7 +10,7 @@ export const createHomeworkSchema = z.object({
     title: z.string().trim().min(3).max(255),
     description: z.string().trim().max(10000).optional().nullable(),
     due_date: dueDateSchema,
-    attachment_url: z.string().url().optional().or(z.literal('')),
+    attachment_url: z.string().url().optional().nullable().or(z.literal('')),
     academic_year: z.string().trim().min(1, 'Academic year is required'),
 });
 

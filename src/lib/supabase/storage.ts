@@ -4,10 +4,12 @@ export class StorageService {
     static async uploadFile(bucket: string, path: string, file: File) {
         const supabase = createClient();
         
+        const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const objectPath = `${crypto.randomUUID()}-${safeFileName}`;
         const { data, error } = await supabase.storage
             .from(bucket)
-            .upload(path, file, {
-                upsert: true,
+            .upload(objectPath, file, {
+                upsert: false,
                 cacheControl: '3600'
             });
 

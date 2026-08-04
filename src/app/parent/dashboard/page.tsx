@@ -47,9 +47,11 @@ export default function ParentDashboardPage() {
         {!loading && data && data.children.length > 0 && (
           <ul className="mt-4 divide-y">
             {data.children.map((child) => (
-              <li key={child.id} className="flex items-center justify-between py-3">
-                <span className="font-medium">{child.full_name}</span>
-                <span className="font-mono text-xs text-muted-foreground">{child.student_id}</span>
+              <li key={child.id}>
+                <Link href={`/parent/children/${child.id}`} className="flex items-center justify-between py-3 transition hover:bg-muted/50">
+                  <span className="font-medium">{child.full_name}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{child.student_id}</span>
+                </Link>
               </li>
             ))}
           </ul>

@@ -123,12 +123,6 @@ export default function CreateHomeworkPage() {
         }
     }
 
-    useEffect(() => {
-        if (uploadingAttachment) {
-            return;
-        }
-    }, [uploadingAttachment]);
-
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[50vh]">
@@ -213,9 +207,9 @@ export default function CreateHomeworkPage() {
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Upload Attachment (Optional)</label>
                     <FileUpload
                         bucket="homework-attachments"
+                        onUploadStateChange={setUploadingAttachment}
                         onUploadComplete={(url) => {
                             setForm((prev) => ({ ...prev, attachment_url: url }));
-                            setUploadingAttachment(false);
                         }}
                         label="Choose file"
                     />

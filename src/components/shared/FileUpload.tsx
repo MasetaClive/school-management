@@ -6,10 +6,11 @@ import { StorageService } from '@/lib/supabase/storage';
 type FileUploadProps = {
     bucket: string;
     onUploadComplete: (url: string) => void;
+    onUploadStateChange?: (uploading: boolean) => void;
     label?: string;
 };
 
-export default function FileUpload({ bucket, onUploadComplete, label = 'Upload File' }: FileUploadProps) {
+export default function FileUpload({ bucket, onUploadComplete, onUploadStateChange, label = 'Upload File' }: FileUploadProps) {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +20,7 @@ export default function FileUpload({ bucket, onUploadComplete, label = 'Upload F
 
         try {
             setUploading(true);
+            onUploadStateChange?.(true);
             setError(null);
             
             const fileName = `${Date.now()}-${file.name}`;
@@ -30,6 +32,7 @@ export default function FileUpload({ bucket, onUploadComplete, label = 'Upload F
             console.error(err);
         } finally {
             setUploading(false);
+            onUploadStateChange?.(false);
         }
     };
 
