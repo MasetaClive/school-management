@@ -246,7 +246,7 @@ export default function TeacherDashboardPage() {
                     <div className="bg-white rounded-3xl border border-slate-100 shadow-lg shadow-slate-200/50 overflow-hidden">
                         <div className="px-6 py-5 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
                             <h3 className="font-black text-sm uppercase text-slate-800 tracking-wider flex items-center gap-2">
-                                📅 Today's Timetable
+                                📅 Today&apos;s Timetable
                             </h3>
                             <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
                                 {new Date().toLocaleDateString(undefined, { weekday: 'long' })}

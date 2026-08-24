@@ -158,7 +158,7 @@ export default function Topbar({ schoolName, user }: { schoolName?: string; user
                             )}
 
                             {results.students.length === 0 && results.teachers.length === 0 && results.classes.length === 0 && !isSearching && (
-                                <p className="p-8 text-center text-xs text-slate-400 font-medium italic">No matches found for "{searchQuery}"</p>
+                                <p className="p-8 text-center text-xs text-slate-400 font-medium italic">No matches found for &quot;{searchQuery}&quot;</p>
                             )}
                         </div>
                     </div>

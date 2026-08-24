@@ -92,7 +92,7 @@ export default function AdminDashboardPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-3xl font-black tracking-tight text-slate-900 uppercase italic">Institutional Intelligence</h2>
-                    <p className="text-slate-500 font-medium font-sans">Real-time overview of your school's vital signs.</p>
+                    <p className="text-slate-500 font-medium font-sans">Real-time overview of your school&apos;s vital signs.</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs font-black bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 uppercase tracking-widest text-slate-400">
                     <span className="text-emerald-500 animate-pulse">●</span> LIVE SYSTEM STATUS
