@@ -45,18 +45,7 @@ export default function Topbar({ schoolName, user }: { schoolName?: string; user
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    React.useEffect(() => {
-        if (searchQuery.length > 2) {
-            const delayDebounceFn = setTimeout(() => {
-                void performSearch();
-            }, 300);
-            return () => clearTimeout(delayDebounceFn);
-        } else {
-            setResults({ students: [], teachers: [], classes: [] });
-        }
-    }, [searchQuery]);
-
-    async function performSearch() {
+    const performSearch = React.useCallback(async () => {
         try {
             setIsSearching(true);
             const [sRes, tRes, cRes] = await Promise.all([
@@ -81,7 +70,18 @@ export default function Topbar({ schoolName, user }: { schoolName?: string; user
         } finally {
             setIsSearching(false);
         }
-    }
+    }, [searchQuery]);
+
+    React.useEffect(() => {
+        if (searchQuery.length > 2) {
+            const delayDebounceFn = setTimeout(() => {
+                void performSearch();
+            }, 300);
+            return () => clearTimeout(delayDebounceFn);
+        } else {
+            setResults({ students: [], teachers: [], classes: [] });
+        }
+    }, [searchQuery, performSearch]);
 
     return (
         <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-40">

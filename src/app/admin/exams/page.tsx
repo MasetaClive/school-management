@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type ExamRow = {
@@ -28,7 +28,7 @@ export default function ExamsPage() {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
 
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -43,11 +43,11 @@ export default function ExamsPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [page, search]);
 
     useEffect(() => {
         void load();
-    }, [page]);
+    }, [load]);
 
     function handleSearch(event: FormEvent) {
         event.preventDefault();

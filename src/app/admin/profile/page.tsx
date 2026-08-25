@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
 export default function AdminProfilePage() {
@@ -106,7 +107,7 @@ export default function AdminProfilePage() {
                         <div className="absolute -inset-1 bg-gradient-to-br from-indigo-600 to-rose-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
                         <div className="relative w-40 h-40 rounded-full bg-white flex items-center justify-center text-5xl font-black text-indigo-600 border-4 border-white shadow-xl overflow-hidden tracking-tighter">
                             {user?.avatar_url ? (
-                                <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+                                <Image src={user.avatar_url} alt={user.full_name} width={160} height={160} unoptimized className="w-full h-full object-cover" />
                             ) : (
                                 initials
                             )}

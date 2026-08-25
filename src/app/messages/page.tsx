@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type Message = {
@@ -31,7 +31,7 @@ export default function MessagesPage() {
     const [page, setPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
 
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -44,11 +44,11 @@ export default function MessagesPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [folder, page]);
 
     useEffect(() => {
         void load();
-    }, [folder, page]);
+    }, [load]);
 
     const getInitials = (name: string) => {
         return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);

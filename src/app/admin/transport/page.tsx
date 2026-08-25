@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 type Route = {
     id: string;
@@ -100,6 +100,16 @@ export default function TransportManagementPage() {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [selectedStudent, setSelectedStudent] = useState<any>(null);
 
+    const searchStudents = useCallback(async () => {
+        try {
+            const res = await fetch(`/api/admin/students?search=${encodeURIComponent(studentSearch)}`);
+            const data = await res.json();
+            setSearchResults(data.data || []);
+        } catch (e) {
+            console.error('Search failed', e);
+        }
+    }, [studentSearch]);
+
     useEffect(() => {
         if (studentSearch.length > 2) {
             const delayDebounceFn = setTimeout(() => {
@@ -109,17 +119,7 @@ export default function TransportManagementPage() {
         } else {
             setSearchResults([]);
         }
-    }, [studentSearch]);
-
-    async function searchStudents() {
-        try {
-            const res = await fetch(`/api/admin/students?search=${encodeURIComponent(studentSearch)}`);
-            const data = await res.json();
-            setSearchResults(data.data || []);
-        } catch (e) {
-            console.error('Search failed', e);
-        }
-    }
+    }, [studentSearch, searchStudents]);
 
     async function handleAssign(e: React.FormEvent) {
         e.preventDefault();

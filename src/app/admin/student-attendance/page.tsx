@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type AttendanceRow = {
@@ -32,7 +32,7 @@ export default function StudentAttendancePage() {
     const [students, setStudents] = useState<SelectOption[]>([]);
     const [classes, setClasses] = useState<SelectOption[]>([]);
 
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -48,11 +48,11 @@ export default function StudentAttendancePage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [page, search, filters]);
 
     useEffect(() => {
         void load();
-    }, [page, filters]);
+    }, [load]);
 
     useEffect(() => {
         async function loadFilters() {

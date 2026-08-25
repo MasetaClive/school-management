@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type TimetableRow = {
@@ -36,7 +36,7 @@ export default function TimetablesPage() {
     const [subjects, setSubjects] = useState<SelectOption[]>([]);
     const [academicYears, setAcademicYears] = useState<SelectOption[]>([]);
 
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -52,11 +52,11 @@ export default function TimetablesPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [page, search, filters]);
 
     useEffect(() => {
         void load();
-    }, [page, filters]);
+    }, [load]);
 
     useEffect(() => {
         async function loadFilters() {

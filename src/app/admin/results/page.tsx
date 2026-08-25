@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type ResultRow = {
@@ -26,7 +26,7 @@ export default function ResultsPage() {
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
 
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -39,11 +39,11 @@ export default function ResultsPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [page]);
 
     useEffect(() => {
         void load();
-    }, [page]);
+    }, [load]);
 
     async function handleDelete(id: string) {
         if (!confirm('Are you sure you want to delete this result?')) return;

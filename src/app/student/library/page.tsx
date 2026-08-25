@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 type Book = {
     id: string;
@@ -18,11 +18,7 @@ export default function StudentLibraryPage() {
     const [borrowingId, setBorrowingId] = useState<string | null>(null);
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-    useEffect(() => {
-        void load();
-    }, [search]);
-
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             const res = await fetch(`/api/admin/library/books${search ? `?q=${search}` : ''}`);
@@ -33,7 +29,11 @@ export default function StudentLibraryPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [search]);
+
+    useEffect(() => {
+        void load();
+    }, [load]);
 
     async function handleBorrow(bookId: string, title: string) {
         setBorrowingId(bookId);

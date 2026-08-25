@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type TimeSlotRow = {
@@ -35,7 +35,7 @@ export default function TimeSlotsPage() {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
 
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -52,11 +52,11 @@ export default function TimeSlotsPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [page, search]);
 
     useEffect(() => {
         void load();
-    }, [page]);
+    }, [load]);
 
     async function handleDelete(id: string) {
         if (!confirm('Are you sure you want to delete this time slot?')) return;

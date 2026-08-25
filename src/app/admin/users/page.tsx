@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type User = {
@@ -21,7 +21,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/admin/users?page=${page}`);
@@ -34,11 +34,11 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page]);
 
   useEffect(() => {
     void load();
-  }, [page]);
+  }, [load]);
 
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this user? This will also unlink any student/parent/teacher records.')) return;

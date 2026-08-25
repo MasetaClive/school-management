@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type AssignmentRow = {
@@ -33,7 +33,7 @@ export default function SubjectAssignmentsPage() {
     const [subjects, setSubjects] = useState<SelectOption[]>([]);
     const [classes, setClasses] = useState<SelectOption[]>([]);
 
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -53,11 +53,11 @@ export default function SubjectAssignmentsPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [page, search, filters]);
 
     useEffect(() => {
         void load();
-    }, [page, filters]);
+    }, [load]);
 
     useEffect(() => {
         async function loadFilters() {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -25,7 +25,7 @@ export default function MessageDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    async function load() {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             const res = await fetch(`/api/messages/${id}`);
@@ -37,11 +37,11 @@ export default function MessageDetailPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [id]);
 
     useEffect(() => {
         void load();
-    }, [id]);
+    }, [load]);
 
     async function handleDelete() {
         if (!confirm('Are you sure you want to delete this message?')) return;

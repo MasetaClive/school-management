@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type AcademicYear = { id: string; year: string; is_active: boolean; is_closed: boolean; start_date: string | null; end_date: string | null };
@@ -13,7 +13,7 @@ export default function AcademicYearsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setLoading(true); setError(null);
       const params = new URLSearchParams({ page: String(page) });
@@ -24,9 +24,9 @@ export default function AcademicYearsPage() {
       setResult(json);
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed to load academic years'); }
     finally { setLoading(false); }
-  }
+  }, [page, search]);
 
-  useEffect(() => { void load(); }, [page]);
+  useEffect(() => { void load(); }, [load]);
 
   async function handleUpdate(id: string, payload: { is_active?: boolean; is_closed?: boolean }) {
     const action = payload.is_active ? 'activate' : 'close';

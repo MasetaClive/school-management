@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -38,7 +38,7 @@ export default function StudentsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -55,11 +55,11 @@ export default function StudentsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, search]);
 
   useEffect(() => {
     void load();
-  }, [page]);
+  }, [load]);
 
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this student record? This cannot be undone.')) return;
