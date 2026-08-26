@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "jest --coverage"
   },
   "keywords": [],
   "author": "",
@@ -29,13 +30,16 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
     "@tailwindcss/postcss": "^4.2.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "autoprefixer": "^10.4.24",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.23",
+    "jest": "^30.4.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.4",
+    "ts-jest": "^29.4.12",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.67.0"
   }
