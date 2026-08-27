@@ -137,7 +137,7 @@ describe('parent, student, and teacher API routes', () => {
     expect((await studentResults.GET()).status).toBe(200);
     expect((await studentClasses.GET()).status).toBe(200);
     expect((await studentTimetable.GET()).status).toBe(200);
-    expect((await studentBorrow.POST(request('http://localhost/api/student/library/borrow', {}), undefined))).toMatchObject({ status: 400 });
+    expect((await studentBorrow.POST(request('http://localhost/api/student/library/borrow', {})))).toMatchObject({ status: 400 });
     expect((await studentNotifications.POST(request('http://localhost/api/student/settings/notifications', { sms_notifications: true })))).toMatchObject({ status: 200 });
     expect((await studentPassword.POST(request('http://localhost/api/student/settings/password', { password: 'short' })))).toMatchObject({ status: 400 });
     mockBorrowBook.mockRejectedValue(new Error('library down'));

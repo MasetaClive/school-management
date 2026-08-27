@@ -66,7 +66,7 @@ describe('ParentService', () => {
   it('maps parent validation and dependency failures', async () => {
     const validation = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: { message: 'db' } }) };
     mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(validation) } as never);
-    await expect(ParentService.createParent({ parent_id: 'P001', full_name: 'Jane', create_account: false, password_mode: 'auto' })).rejects.toMatchObject({ status: 500 });
+    await expect(ParentService.createParent({ parent_id: 'P001', full_name: 'Jane', phone: '0000000000', create_account: false, password_mode: 'auto' })).rejects.toMatchObject({ status: 500 });
 
     const lookup = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: { id: 'p', user_id: null }, error: null }) };
     const linkedFailure = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ count: null, error: { message: 'db' } }) };

@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { GET, POST } from '../route';
 import { StudentController } from '@/modules/students/student.controller';
 
@@ -16,20 +16,13 @@ describe('Admin Students API route', () => {
 
   describe('GET', () => {
     it('delegates to StudentController.list', async () => {
-      const response = new Response(
-        JSON.stringify({
+      const response = NextResponse.json({
           data: [],
           page: 1,
+          pageSize: 20,
           total: 0,
           totalPages: 0,
-        }),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+        }, { status: 200 });
 
       jest.mocked(StudentController.list).mockResolvedValue(response);
 
@@ -46,20 +39,13 @@ describe('Admin Students API route', () => {
 
   describe('POST', () => {
     it('delegates to StudentController.create', async () => {
-      const response = new Response(
-        JSON.stringify({
-          data: {
+      const response = NextResponse.json({
+          profile: {
             id: 'student-1',
             full_name: 'John Doe',
           },
-        }),
-        {
-          status: 201,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+          account: null,
+        }, { status: 201 });
 
       jest.mocked(StudentController.create).mockResolvedValue(response);
 

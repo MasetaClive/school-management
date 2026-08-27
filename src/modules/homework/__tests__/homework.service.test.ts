@@ -89,6 +89,6 @@ describe('HomeworkService', () => {
     mockCreateClient.mockResolvedValue({ from: jest.fn().mockImplementationOnce(() => list).mockImplementationOnce(() => relation([{ id: 'teacher-id' }])).mockImplementationOnce(() => relation([])).mockImplementationOnce(() => relation([])) } as never);
     await expect(HomeworkService.listHomework({ page: 2, class_id: 'class-id', teacher_id: 'teacher-id', subject_id: 'subject-id', academic_year: '2026', due_before: '2026-12-01', due_after: '2026-01-01', search: 'John' })).resolves.toMatchObject({ data: [{ id: 'h1' }], page: 2, totalPages: 2 });
     mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(relation(null)) } as never);
-    await expect(HomeworkService.listHomework({ search: '%,_' })).resolves.toMatchObject({ data: [], total: 0 });
+    await expect(HomeworkService.listHomework({ page: 1, search: '%,_' })).resolves.toMatchObject({ data: [], total: 0 });
   });
 });
