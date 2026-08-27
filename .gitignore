@@ -39,3 +39,4 @@ Thumbs.db
 
 # Trigger.dev
 .trigger/
+coverage/
