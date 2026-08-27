@@ -32,7 +32,6 @@ function toJsonError(e: unknown) {
     if (e && typeof e === 'object' && 'name' in e && e.name === 'ZodError') {
         return NextResponse.json({ error: (e as any).message }, { status: 400 });
     }
-    // eslint-disable-next-line no-console
     console.error('[parents] unexpected error', e);
     return NextResponse.json(
         { error: 'Internal server error' },

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CreateFeeTypeInput, CreateStudentFeeInput, RecordPaymentInput } from './fees.validation';
 
 export class FeesServiceError extends Error {
@@ -49,8 +50,8 @@ export class FeesService {
         return data;
     }
 
-    static async recordPayment(input: RecordPaymentInput, userId: string) {
-        const supabase = await createClient();
+    static async recordPayment(input: RecordPaymentInput, userId: string, client?: SupabaseClient) {
+        const supabase = client ?? await createClient();
 
         // 1. Get current fee status
         const { data: studentFee, error: fetchError } = await supabase
@@ -59,7 +60,10 @@ export class FeesService {
             .eq('id', input.student_fee_id)
             .single();
 
-        if (fetchError || !studentFee) throw new FeesServiceError('Student fee record not found', 404);
+        if (fetchError || !studentFee) {
+            if (fetchError) console.error('[FeesService] recordPayment student fee lookup error:', fetchError);
+            throw new FeesServiceError('Student fee record not found', 404);
+        }
 
         const newPaidAmount = Number(studentFee.paid_amount) + input.amount_paid;
         const totalAmount = Number(studentFee.total_amount);
@@ -78,7 +82,10 @@ export class FeesService {
                 recorded_by: userId
             });
 
-        if (paymentError) throw new FeesServiceError('Failed to record payment', 500);
+        if (paymentError) {
+            console.error('[FeesService] recordPayment fee_payments insert error:', paymentError);
+            throw new FeesServiceError('Failed to record payment', 500);
+        }
 
         const newStatus = newPaidAmount >= totalAmount ? 'paid' : 'partial';
 
@@ -92,7 +99,10 @@ export class FeesService {
             .select('*')
             .single();
 
-        if (updateError) throw new FeesServiceError('Failed to update fee status', 500);
+        if (updateError) {
+            console.error('[FeesService] recordPayment student_fees update error:', updateError);
+            throw new FeesServiceError('Failed to update fee status', 500);
+        }
 
         return { payment: input, updatedFee };
     }

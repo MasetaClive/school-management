@@ -31,7 +31,6 @@ function toJsonError(e: unknown) {
   if (e instanceof Error && e.name === 'ZodError') {
     return NextResponse.json({ error: 'Validation failed' }, { status: 400 });
   }
-  // eslint-disable-next-line no-console
   console.error('[academic-years] unexpected error', e);
   return NextResponse.json(
     { error: 'Internal server error' },

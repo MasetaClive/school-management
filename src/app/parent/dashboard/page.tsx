@@ -74,6 +74,11 @@ export default function ParentDashboardPage() {
         </div>
       )}
 
+      <Link href="/parent/finance" className="block rounded-lg border bg-card p-6 transition hover:border-emerald-600 group">
+        <h3 className="font-semibold text-emerald-600 group-hover:text-emerald-700 transition-colors">Finance & Fee Accounts</h3>
+        <p className="text-sm text-muted-foreground">View tuition fee balances, payment history, and download statements/receipts</p>
+      </Link>
+
       <Link href="/messages" className="block rounded-lg border bg-card p-6 transition hover:border-primary">
         <h3 className="font-semibold text-blue-600">Messages</h3>
         <p className="text-sm text-muted-foreground">Communication with the school</p>

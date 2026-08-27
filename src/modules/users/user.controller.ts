@@ -23,7 +23,6 @@ async function ensureAdmin() {
 }
 
 function toJsonError(e: unknown) {
-  // eslint-disable-next-line no-console
   console.error('[users] Error caught in controller:', e);
   
   if (e instanceof ApiError || e instanceof UserServiceError) {
