@@ -22,7 +22,7 @@ describe('low coverage services', () => {
   it('maps fee creation, assignment, and balance failures', async () => {
     const failed = { insert: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), single: jest.fn().mockResolvedValue({ data: null, error: new Error('db') }) };
     mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(failed) } as never);
-    await expect(FeesService.createFeeType({ name: 'Tuition', academic_year: '2026' })).rejects.toMatchObject({ status: 500 });
+    await expect(FeesService.createFeeType({ name: 'Tuition', amount: 100, academic_year: '2026' })).rejects.toMatchObject({ status: 500 });
     await expect(FeesService.assignFeeToStudent({ student_id: 'student-1', fee_type_id: 'fee-type-1', total_amount: 100, academic_year: '2026' })).rejects.toMatchObject({ status: 500 });
     const balance = { eq: jest.fn().mockResolvedValue({ data: null, error: new Error('db') }) };
     mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue(balance) }) } as never);
