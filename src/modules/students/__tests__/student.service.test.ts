@@ -176,6 +176,27 @@ describe('StudentService', () => {
         }),
       );
     });
+
+    it('validates optional class and parent references and normalizes medical info', async () => {
+      const reference = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) };
+      mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(reference) } as never);
+      await expect(StudentService.createStudent({ ...baseInput, class_id: 'missing' })).rejects.toMatchObject({ message: 'Class not found' });
+      const parentError = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) };
+      mockCreateClient.mockResolvedValueOnce({ from: jest.fn().mockReturnValue({ select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) }) } as never).mockResolvedValueOnce({ from: jest.fn().mockReturnValue(parentError) } as never);
+      await expect(StudentService.createStudent({ ...baseInput, parent_id: 'missing' })).rejects.toMatchObject({ message: 'Parent not found' });
+      expect(StudentService.normalizeMedicalInfo('{"allergy":"pollen"}')).toEqual({ allergy: 'pollen' });
+      expect(StudentService.normalizeMedicalInfo('invalid')).toEqual({});
+      expect(StudentService.normalizeMedicalInfo(12)).toEqual({});
+    });
+
+    it('provisions an account and rolls it back when student insertion fails', async () => {
+      mockUserService.provisionAccount.mockResolvedValue({ userId: 'user-id', username: 'STU-001' } as never);
+      const uniqueQuery = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) };
+      const insertQuery = { insert: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), single: jest.fn().mockResolvedValue({ data: null, error: { message: 'insert failed' } }) };
+      mockCreateClient.mockResolvedValueOnce({ from: jest.fn().mockReturnValue(uniqueQuery) } as never).mockResolvedValueOnce({ from: jest.fn().mockReturnValue(insertQuery) } as never);
+      await expect(StudentService.createStudent({ ...baseInput, create_account: true, password: 'secret' })).rejects.toMatchObject({ message: 'Failed to create student: insert failed', status: 500 });
+      expect(mockUserService.rollbackProvisionedAccount).toHaveBeenCalledWith('user-id');
+    });
   });
 
   describe('updateStudent', () => {
@@ -240,5 +261,42 @@ describe('StudentService', () => {
         }),
       );
     });
+
+    it('maps update and not-found errors', async () => {
+      const missing = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) };
+      mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(missing) } as never);
+      await expect(StudentService.updateStudent('missing', {})).rejects.toMatchObject({ message: 'Student not found', status: 404 });
+      const existing = { id: 'student-id', full_name: 'Name', class_id: null, parent_id: null, medical_info: {}, academic_year: '2026' };
+      const get = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: existing, error: null }) };
+      const update = { update: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), single: jest.fn().mockResolvedValue({ data: null, error: { message: 'down' } }) };
+      mockCreateClient.mockResolvedValueOnce({ from: jest.fn().mockReturnValue(get) } as never).mockResolvedValueOnce({ from: jest.fn().mockReturnValue(update) } as never);
+      await expect(StudentService.updateStudent('student-id', { medical_info: { asthma: true } })).rejects.toMatchObject({ message: 'Failed to update student', status: 500 });
+    });
+  });
+
+  it('checks related records, deletes safely, and lists filtered students', async () => {
+    const profile = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: { id: 'student-id' }, error: null }) };
+    const check = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ count: 0, error: null }) };
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockImplementationOnce(() => profile).mockImplementation(() => check) } as never);
+    await expect(StudentService.canHardDeleteStudent('student-id')).resolves.toBe(true);
+    const list = { select: jest.fn().mockReturnThis(), order: jest.fn().mockReturnThis(), or: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), range: jest.fn().mockResolvedValue({ data: [], error: null, count: 0 }) };
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(list) } as never);
+    await expect(StudentService.listStudents({ search: 'STU', class_id: 'class-id', academic_year: '2026', page: 2 })).resolves.toMatchObject({ data: [], page: 2, totalPages: 1 });
+  });
+
+  it('returns dashboard defaults and rejects a missing profile', async () => {
+    const missing = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) };
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(missing) } as never);
+    await expect(StudentService.getStudentDashboardData('user')).rejects.toMatchObject({ message: 'Student profile not found', status: 404 });
+    const profile = { id: 'student-id', class_id: 'class-id', academic_year: '2026' };
+    const profileQuery = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: profile, error: null }) };
+    const attendance = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ data: [], count: 0, error: null }) };
+    const homework = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ data: null, count: null, error: null }) };
+    const results = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), order: jest.fn().mockReturnThis(), limit: jest.fn().mockResolvedValue({ data: null, error: null }) };
+    const schedule = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis() };
+    schedule.eq.mockReturnValue(schedule);
+    schedule.eq.mockImplementationOnce(() => schedule).mockImplementationOnce(() => schedule).mockResolvedValueOnce({ data: [], error: null });
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockImplementationOnce(() => profileQuery).mockImplementationOnce(() => attendance).mockImplementationOnce(() => homework).mockImplementationOnce(() => results).mockImplementationOnce(() => schedule) } as never);
+    await expect(StudentService.getStudentDashboardData('user')).resolves.toMatchObject({ stats: { attendanceRate: 100, pendingHomework: 0 }, recentResults: [], todaySchedule: [] });
   });
 });

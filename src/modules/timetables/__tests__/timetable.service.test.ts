@@ -4,7 +4,7 @@ jest.mock('@/lib/supabase/server', () => ({ createClient: jest.fn() }));
 import { createClient } from '@/lib/supabase/server';
 
 const mockCreateClient = createClient as jest.MockedFunction<typeof createClient>;
-const relation = (data: unknown, error: unknown = null) => ({ select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data, error }) });
+const relation = (data: unknown, error: unknown = null) => ({ select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), neq: jest.fn().mockReturnThis(), in: jest.fn().mockReturnThis(), or: jest.fn().mockReturnThis(), order: jest.fn().mockReturnThis(), range: jest.fn().mockResolvedValue({ data: [], error: null, count: 0 }), maybeSingle: jest.fn().mockResolvedValue({ data, error }), update: jest.fn().mockReturnThis(), delete: jest.fn().mockReturnThis() });
 const input = { class_id: 'class-id', subject_id: 'subject-id', teacher_id: 'teacher-id', time_slot_id: 'slot-id', academic_year: '2026' };
 const validReferences = () => [relation({ id: 'class-id' }), relation({ id: 'slot-id' }), relation({ id: 'year-id', is_closed: false }), relation({ id: 'assignment-id' })];
 
@@ -42,5 +42,22 @@ describe('TimetableService', () => {
     mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValueOnce(listQuery).mockReturnValueOnce(slots) } as never);
 
     await expect(TimetableService.listTimetables({ page: 1, day_of_week: 2 })).resolves.toMatchObject({ data: [], total: 0, totalPages: 1 });
+  });
+
+  it.each([
+    ['class', 0, 'Class not found', 404], ['time slot', 1, 'Time slot not found', 404], ['year', 2, 'Academic year not found', 404],
+  ])('rejects a missing %s reference', async (_name, index, message, status) => {
+    const references = validReferences(); references[index as number] = relation(null);
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockImplementation((table: string) => references[['classes', 'time_slots', 'academic_years', 'subject_assignments'].indexOf(table)]) } as never);
+    await expect(TimetableService.createTimetableEntry(input)).rejects.toMatchObject({ message, status });
+  });
+
+  it('covers teacher conflicts, insert conflicts, and search errors', async () => {
+    const references = validReferences();
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockImplementationOnce(() => references[0]).mockImplementationOnce(() => references[1]).mockImplementationOnce(() => references[2]).mockImplementationOnce(() => references[3]).mockImplementationOnce(() => relation(null)).mockImplementationOnce(() => relation({ id: 'teacher-entry' })) } as never);
+    await expect(TimetableService.createTimetableEntry(input)).rejects.toMatchObject({ message: 'Teacher is already scheduled in this time slot', status: 409 });
+    const list = relation(null); list.range.mockResolvedValue({ data: null, error: { message: 'down' }, count: 0 });
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(list) } as never);
+    await expect(TimetableService.listTimetables({ search: 'teacher' })).rejects.toMatchObject({ status: 500 });
   });
 });

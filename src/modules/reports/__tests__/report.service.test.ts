@@ -13,4 +13,16 @@ describe('ReportService', () => {
     mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue({ select: jest.fn().mockResolvedValue({ data: null, error: { message: 'db' } }) }) } as never);
     await expect(ReportService.getAcademicAnalytics()).resolves.toEqual([]);
   });
+
+  it('groups unknown relations and calculates financial and attendance defaults', async () => {
+    const academics = { select: jest.fn().mockResolvedValue({ data: [{ marks_obtained: 75, subject: null, exam: null }], error: null }) };
+    const fees = { select: jest.fn().mockResolvedValue({ data: [{ amount_paid: '100.50' }, { amount_paid: 25 }], error: null }) };
+    const payroll = { select: jest.fn().mockResolvedValue({ data: [{ net_amount: '50' }], error: null }) };
+    const attendance = { select: jest.fn().mockResolvedValue({ data: [], error: null }) };
+    const from = jest.fn().mockReturnValueOnce(academics).mockReturnValueOnce(fees).mockReturnValueOnce(payroll).mockReturnValueOnce(attendance);
+    mockCreateClient.mockResolvedValue({ from } as never);
+    await expect(ReportService.getAcademicAnalytics()).resolves.toEqual([{ name: 'Unknown (General)', average: 75 }]);
+    await expect(ReportService.getFinancialSummary()).resolves.toEqual({ collections: 125.5, expenses: 50, net: 75.5 });
+    await expect(ReportService.getAttendanceTrends()).resolves.toEqual({ attendanceRate: 0 });
+  });
 });

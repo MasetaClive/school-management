@@ -17,4 +17,18 @@ describe('PayrollService', () => {
     mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValueOnce(configs).mockReturnValueOnce(insert) } as never);
     await expect(PayrollService.generateMonthlyPayroll(8, 2026)).rejects.toMatchObject({ message: 'Payroll already generated for 8/2026', status: 409 });
   });
+
+  it('uses default salary values and handles list or configuration errors', async () => {
+    const upsert = { upsert: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), single: jest.fn().mockResolvedValue({ data: { id: 'salary' }, error: null }) };
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(upsert) } as never);
+    await expect(PayrollService.setSalaryConfig('teacher', 1000)).resolves.toEqual({ id: 'salary' });
+    expect(upsert.upsert).toHaveBeenCalledWith({ teacher_id: 'teacher', base_salary: 1000, allowances: 0, deductions: 0 });
+
+    const configs = { select: jest.fn().mockResolvedValue({ data: null, error: { message: 'db' } }) };
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(configs) } as never);
+    await expect(PayrollService.generateMonthlyPayroll(8, 2026)).rejects.toMatchObject({ status: 500, message: 'Failed to fetch salary configurations' });
+    const history = { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), order: jest.fn().mockResolvedValue({ data: [], error: null }) };
+    mockCreateClient.mockResolvedValue({ from: jest.fn().mockReturnValue(history) } as never);
+    await expect(PayrollService.listPayrollHistory(2026)).resolves.toEqual([]);
+  });
 });

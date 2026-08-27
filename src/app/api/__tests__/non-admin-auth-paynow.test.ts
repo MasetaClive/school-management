@@ -35,7 +35,7 @@ const req = (url: string, body?: unknown, method = 'POST') => new NextRequest(ur
   ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
 });
 const feeQuery = (fee: unknown, error: unknown = null) => ({
-  select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: fee, error }),
+  select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), limit: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: fee, error }),
 });
 
 describe('non-admin auth, agent, attendance, and Paynow routes', () => {
@@ -117,6 +117,7 @@ describe('non-admin auth, agent, attendance, and Paynow routes', () => {
     expect((await webhook(req('http://localhost/api/parent/paynow/webhook', { reference: 'r', status: 'Failed' }))).status).toBe(200);
     expect(mockUpdateTransactionStatus).toHaveBeenCalledWith('r', 'failed', '');
     mockCreateAdminClient.mockResolvedValue({ from: jest.fn().mockReturnValue(feeQuery({ id: 'admin' })) });
+    mockRecordPayment.mockRejectedValueOnce(new Error('record failed'));
     expect((await webhook(req('http://localhost/api/parent/paynow/webhook', { reference: 'r', status: 'Paid', paynowreference: 'pn' }))).status).toBe(500);
   });
 });

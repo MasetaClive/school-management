@@ -40,4 +40,34 @@ describe('UserService', () => {
     await expect(UserService.provisionAccount({ role: 'parent', username: 'P001', fullName: 'Parent' })).rejects.toMatchObject({ message: 'Failed to create user profile: Profile failed', status: 500 });
     expect(deleteUser).toHaveBeenCalledWith('user-id');
   });
+
+  it('uses a generated local password and rolls back both profile and auth account', async () => {
+    const deleteUser = jest.fn().mockResolvedValue({});
+    const profileInsert = { insert: jest.fn().mockResolvedValue({ error: null }) };
+    const adminClient = { auth: { admin: { createUser: jest.fn().mockResolvedValue({ data: { user: { id: 'user-id' } }, error: null }), deleteUser } }, from: jest.fn().mockReturnValue(profileInsert) };
+    mockCreateAdminClient.mockResolvedValue(adminClient as never);
+    const result = await UserService.provisionAccount({ role: 'student', username: 'S001', fullName: 'Student' });
+    expect(result.initialPassword).toEqual(expect.any(String));
+    expect(adminClient.auth.admin.createUser).toHaveBeenCalledWith(expect.objectContaining({ email: 's001@school.local', email_confirm: true }));
+
+    const profileDelete = { delete: jest.fn().mockReturnThis(), eq: jest.fn().mockResolvedValue({ error: null }) };
+    const rollbackClient = { from: jest.fn().mockReturnValue(profileDelete), auth: { admin: { deleteUser } } };
+    mockCreateAdminClient.mockResolvedValue(rollbackClient as never);
+    await expect(UserService.rollbackProvisionedAccount('user-id')).resolves.toBeUndefined();
+    expect(profileDelete.delete).toHaveBeenCalled();
+    expect(deleteUser).toHaveBeenCalledWith('user-id');
+  });
+
+  it('lists users with optional filters and maps duplicate creation', async () => {
+    const list = { select: jest.fn().mockReturnThis(), or: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), range: jest.fn().mockReturnThis(), order: jest.fn().mockResolvedValue({ data: [], count: 0, error: null }) };
+    const client = { from: jest.fn().mockReturnValue(list) };
+    const server = require('@/lib/supabase/server');
+    server.createClient.mockResolvedValue(client);
+    await expect(UserService.getUsers({ page: 2, search: 'Jane', role: 'teacher' })).resolves.toEqual({ data: [], total: 0, page: 2, limit: 10 });
+    expect(list.range).toHaveBeenCalledWith(10, 19);
+
+    const create = { insert: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), single: jest.fn().mockResolvedValue({ data: null, error: { code: '23505' } }) };
+    mockCreateAdminClient.mockResolvedValue({ from: jest.fn().mockReturnValue(create) } as never);
+    await expect(UserService.createUser({ email: 'duplicate@example.com', full_name: 'Jane', role: 'teacher' } as never)).rejects.toMatchObject({ status: 409 });
+  });
 });
