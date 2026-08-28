@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getErrorMessage, requestJson } from '@/lib/api-client';
 
 type Book = {
     id: string;
@@ -14,6 +15,8 @@ type Book = {
 export default function LibraryCatalog() {
     const [books, setBooks] = useState<Book[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
     const [showAdd, setShowAdd] = useState(false);
     const [newBook, setNewBook] = useState({ title: '', author: '', quantity: 1, category: '' });
 
@@ -24,11 +27,12 @@ export default function LibraryCatalog() {
     async function load() {
         try {
             setLoading(true);
-            const res = await fetch('/api/admin/library/books');
-            const data = await res.json();
+            setError(null);
+            const data = await requestJson<unknown>('/api/admin/library/books');
+            if (!Array.isArray(data)) throw new Error('The library catalog response was invalid.');
             setBooks(data);
-        } catch (e) {
-            console.error('Failed to load books');
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to load the book catalog. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -37,16 +41,19 @@ export default function LibraryCatalog() {
     async function handleAdd(e: React.FormEvent) {
         e.preventDefault();
         try {
-            const res = await fetch('/api/admin/library/books', {
+            setSaving(true);
+            setError(null);
+            await requestJson('/api/admin/library/books', {
                 method: 'POST',
-                body: JSON.stringify(newBook)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newBook),
             });
-            if (res.ok) {
-                setShowAdd(false);
-                void load();
-            }
-        } catch (e) {
-            alert('Failed to add book');
+            setShowAdd(false);
+            await load();
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to add the book. Please try again.'));
+        } finally {
+            setSaving(false);
         }
     }
 
@@ -61,6 +68,8 @@ export default function LibraryCatalog() {
                     {showAdd ? 'Cancel' : 'Add New Book'}
                 </button>
             </div>
+
+            {error && <p role="alert" className="rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
             {showAdd && (
                 <form onSubmit={handleAdd} className="p-6 border rounded-lg bg-muted/20 grid grid-cols-4 gap-4 items-end">
@@ -93,7 +102,7 @@ export default function LibraryCatalog() {
                             required
                         />
                     </div>
-                    <button type="submit" className="col-start-4 bg-primary text-primary-foreground h-[40px] rounded font-bold text-sm">Save Book</button>
+                    <button type="submit" disabled={saving} className="col-start-4 bg-primary text-primary-foreground h-[40px] rounded font-bold text-sm disabled:opacity-50">{saving ? 'Saving...' : 'Save Book'}</button>
                 </form>
             )}
 
@@ -130,6 +139,7 @@ export default function LibraryCatalog() {
                                 </td>
                             </tr>
                         ))}
+                        {!loading && !error && books.length === 0 && <tr><td colSpan={4} className="p-12 text-center text-muted-foreground">No books have been added yet.</td></tr>}
                     </tbody>
                 </table>
             </div>

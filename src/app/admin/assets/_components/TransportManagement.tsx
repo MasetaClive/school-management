@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getErrorMessage, requestJson } from '@/lib/api-client';
 
 type Route = { id: string; name: string; vehicle_number: string; driver_name: string; monthly_fee: number };
 type Assignment = { 
@@ -14,6 +15,7 @@ export default function TransportManagement() {
     const [routes, setRoutes] = useState<Route[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         void load();
@@ -22,16 +24,16 @@ export default function TransportManagement() {
     async function load() {
         try {
             setLoading(true);
-            const [rRes, aRes] = await Promise.all([
-                fetch('/api/admin/transport/routes'),
-                fetch('/api/admin/transport/assignments')
+            setError(null);
+            const [rData, aData] = await Promise.all([
+                requestJson<unknown>('/api/admin/transport/routes'),
+                requestJson<unknown>('/api/admin/transport/assignments'),
             ]);
-            const rData = await rRes.json();
-            const aData = await aRes.json();
+            if (!Array.isArray(rData) || !Array.isArray(aData)) throw new Error('The transport response was invalid.');
             setRoutes(rData);
             setAssignments(aData);
-        } catch (e) {
-            console.error('Failed to load transport data');
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to load transport data. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -44,7 +46,11 @@ export default function TransportManagement() {
                 <button className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium">Add Route</button>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            {error && <p role="alert" className="rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+
+            {loading && <p className="py-12 text-center text-sm text-muted-foreground">Loading transport data...</p>}
+
+            {!loading && <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-4">
                     <h4 className="text-sm font-black uppercase text-muted-foreground tracking-widest">Active Routes</h4>
                     <div className="space-y-3">
@@ -59,6 +65,7 @@ export default function TransportManagement() {
                                 </div>
                             </div>
                         ))}
+                        {routes.length === 0 && <p className="py-8 text-center text-xs italic text-muted-foreground">No active routes yet.</p>}
                     </div>
                 </div>
 
@@ -96,7 +103,7 @@ export default function TransportManagement() {
                         </table>
                     </div>
                 </div>
-            </div>
+            </div>}
         </div>
     );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getErrorMessage, requestJson } from '@/lib/api-client';
 
 type BorrowRecord = {
     id: string;
@@ -14,6 +15,8 @@ type BorrowRecord = {
 export default function BorrowRecords() {
     const [records, setRecords] = useState<BorrowRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [returningId, setReturningId] = useState<string | null>(null);
 
     useEffect(() => {
         void load();
@@ -22,11 +25,12 @@ export default function BorrowRecords() {
     async function load() {
         try {
             setLoading(true);
-            const res = await fetch('/api/admin/library/borrow');
-            const data = await res.json();
+            setError(null);
+            const data = await requestJson<unknown>('/api/admin/library/borrow');
+            if (!Array.isArray(data)) throw new Error('The borrow records response was invalid.');
             setRecords(data);
-        } catch (e) {
-            console.error('Failed to load borrow records');
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to load borrowing history. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -35,16 +39,21 @@ export default function BorrowRecords() {
     async function handleReturn(id: string) {
         if (!confirm('Mark this book as returned?')) return;
         try {
-            const res = await fetch(`/api/admin/library/return/${id}`, { method: 'PATCH' });
-            if (res.ok) void load();
-        } catch (e) {
-            alert('Failed to return book');
+            setReturningId(id);
+            setError(null);
+            await requestJson(`/api/admin/library/return/${id}`, { method: 'PATCH' });
+            await load();
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to return the book. Please try again.'));
+        } finally {
+            setReturningId(null);
         }
     }
 
     return (
         <div className="p-8 space-y-6">
             <h3 className="text-xl font-bold">Borrowing History</h3>
+            {error && <p role="alert" className="rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
             <div className="overflow-x-auto rounded-lg border">
                 <table className="min-w-full text-sm">
@@ -84,14 +93,16 @@ export default function BorrowRecords() {
                                     {rec.status === 'borrowed' && (
                                         <button 
                                             onClick={() => void handleReturn(rec.id)}
-                                            className="text-primary hover:underline font-bold"
+                                            disabled={returningId === rec.id}
+                                            className="text-primary hover:underline font-bold disabled:opacity-50"
                                         >
-                                            Return Book
+                                            {returningId === rec.id ? 'Returning...' : 'Return Book'}
                                         </button>
                                     )}
                                 </td>
                             </tr>
                         ))}
+                        {!loading && !error && records.length === 0 && <tr><td colSpan={5} className="p-12 text-center text-muted-foreground">No borrowing records found.</td></tr>}
                     </tbody>
                 </table>
             </div>

@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getErrorMessage, requestJson } from '@/lib/api-client';
 
 type FeeType = { id: string; name: string; amount: number; academic_year: string };
 
 export default function FeesManagement() {
     const [feeTypes, setFeeTypes] = useState<FeeType[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [newFee, setNewFee] = useState({ name: '', amount: 0, academic_year: '2023-2024' });
 
@@ -17,16 +20,12 @@ export default function FeesManagement() {
     async function load() {
         try {
             setLoading(true);
-            const res = await fetch('/api/admin/fees/types');
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setFeeTypes(data);
-            } else {
-                setFeeTypes([]);
-                console.error('API Error:', data.error);
-            }
-        } catch (e) {
-            console.error('Failed to load fee types');
+            setError(null);
+            const data = await requestJson<unknown>('/api/admin/fees/types');
+            if (!Array.isArray(data)) throw new Error('The fee types response was invalid.');
+            setFeeTypes(data);
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to load fee types. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -35,16 +34,19 @@ export default function FeesManagement() {
     async function handleCreate(e: React.FormEvent) {
         e.preventDefault();
         try {
-            const res = await fetch('/api/admin/fees/types', {
+            setSaving(true);
+            setError(null);
+            await requestJson('/api/admin/fees/types', {
                 method: 'POST',
-                body: JSON.stringify(newFee)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newFee),
             });
-            if (res.ok) {
-                setShowCreate(false);
-                void load();
-            }
-        } catch (e) {
-            alert('Failed to create fee type');
+            setShowCreate(false);
+            await load();
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to create the fee type. Please try again.'));
+        } finally {
+            setSaving(false);
         }
     }
 
@@ -59,6 +61,8 @@ export default function FeesManagement() {
                     {showCreate ? 'Cancel' : 'Create Fee Type'}
                 </button>
             </div>
+
+            {error && <p role="alert" className="rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
             {showCreate && (
                 <form onSubmit={handleCreate} className="p-6 border rounded-lg bg-muted/20 grid grid-cols-3 gap-4 items-end">
@@ -83,7 +87,7 @@ export default function FeesManagement() {
                             required
                         />
                     </div>
-                    <button type="submit" className="bg-primary text-primary-foreground h-[40px] rounded font-bold text-sm">Save Fee Type</button>
+                    <button type="submit" disabled={saving} className="bg-primary text-primary-foreground h-[40px] rounded font-bold text-sm disabled:opacity-50">{saving ? 'Saving...' : 'Save Fee Type'}</button>
                 </form>
             )}
 
@@ -109,6 +113,7 @@ export default function FeesManagement() {
                                 </td>
                             </tr>
                         ))}
+                        {!loading && !error && feeTypes.length === 0 && <tr><td colSpan={4} className="p-12 text-center text-muted-foreground">No fee types have been created yet.</td></tr>}
                     </tbody>
                 </table>
             </div>

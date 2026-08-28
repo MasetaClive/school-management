@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getErrorMessage, requestJson } from '@/lib/api-client';
 
 type PayrollRecord = {
     id: string;
@@ -15,6 +16,7 @@ export default function PayrollManagement() {
     const [history, setHistory] = useState<PayrollRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         void load();
@@ -23,11 +25,12 @@ export default function PayrollManagement() {
     async function load() {
         try {
             setLoading(true);
-            const res = await fetch('/api/admin/payroll');
-            const data = await res.json();
+            setError(null);
+            const data = await requestJson<unknown>('/api/admin/payroll');
+            if (!Array.isArray(data)) throw new Error('The payroll response was invalid.');
             setHistory(data);
-        } catch (e) {
-            console.error('Failed to load payroll');
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to load payroll history. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -40,16 +43,15 @@ export default function PayrollManagement() {
 
         try {
             setGenerating(true);
-            const res = await fetch('/api/admin/payroll', {
+            setError(null);
+            await requestJson('/api/admin/payroll', {
                 method: 'POST',
-                body: JSON.stringify({ month, year })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ month, year }),
             });
-            if (res.ok) {
-                void load();
-            } else {
-                const json = await res.json();
-                alert(json.error || 'Failed to generate');
-            }
+            await load();
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to generate payroll. Please try again.'));
         } finally {
             setGenerating(false);
         }
@@ -73,6 +75,8 @@ export default function PayrollManagement() {
                     </button>
                 </div>
             </div>
+
+            {error && <p role="alert" className="rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
             <div className="overflow-x-auto rounded-lg border">
                 <table className="min-w-full text-sm">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getErrorMessage, requestJson } from '@/lib/api-client';
 
 type InventoryItem = {
     id: string;
@@ -15,6 +16,8 @@ type InventoryItem = {
 export default function InventoryManagement() {
     const [items, setItems] = useState<InventoryItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
     const [showAdd, setShowAdd] = useState(false);
     const [newItem, setNewItem] = useState({ name: '', category: 'furniture', total_quantity: 1, location: '' });
 
@@ -25,11 +28,12 @@ export default function InventoryManagement() {
     async function load() {
         try {
             setLoading(true);
-            const res = await fetch('/api/admin/inventory/items');
-            const data = await res.json();
+            setError(null);
+            const data = await requestJson<unknown>('/api/admin/inventory/items');
+            if (!Array.isArray(data)) throw new Error('The inventory response was invalid.');
             setItems(data);
-        } catch (e) {
-            console.error('Failed to load inventory');
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to load inventory. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -38,16 +42,19 @@ export default function InventoryManagement() {
     async function handleAdd(e: React.FormEvent) {
         e.preventDefault();
         try {
-            const res = await fetch('/api/admin/inventory/items', {
+            setSaving(true);
+            setError(null);
+            await requestJson('/api/admin/inventory/items', {
                 method: 'POST',
-                body: JSON.stringify(newItem)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newItem),
             });
-            if (res.ok) {
-                setShowAdd(false);
-                void load();
-            }
-        } catch (e) {
-            alert('Failed to add item');
+            setShowAdd(false);
+            await load();
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to add the asset. Please try again.'));
+        } finally {
+            setSaving(false);
         }
     }
 
@@ -62,6 +69,8 @@ export default function InventoryManagement() {
                     {showAdd ? 'Cancel' : 'Register New Asset'}
                 </button>
             </div>
+
+            {error && <p role="alert" className="rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
             {showAdd && (
                 <form onSubmit={handleAdd} className="p-6 border rounded-lg bg-muted/20 grid grid-cols-4 gap-4 items-end">
@@ -87,7 +96,7 @@ export default function InventoryManagement() {
                             <option value="stationary">Stationary</option>
                         </select>
                     </div>
-                    <button type="submit" className="bg-primary text-primary-foreground h-[40px] rounded font-bold text-sm">Save Asset</button>
+                    <button type="submit" disabled={saving} className="bg-primary text-primary-foreground h-[40px] rounded font-bold text-sm disabled:opacity-50">{saving ? 'Saving...' : 'Save Asset'}</button>
                 </form>
             )}
 

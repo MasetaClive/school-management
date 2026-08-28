@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getErrorMessage, requestJson } from '@/lib/api-client';
 
 type Announcement = {
     id: string;
@@ -14,6 +15,8 @@ type Announcement = {
 export default function AdminAnnouncementsPage() {
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [publishing, setPublishing] = useState(false);
     const [showAdd, setShowAdd] = useState(false);
     const [newMsg, setNewMsg] = useState({ title: '', content: '', target_roles: [] as string[] });
 
@@ -24,11 +27,12 @@ export default function AdminAnnouncementsPage() {
     async function load() {
         try {
             setLoading(true);
-            const res = await fetch('/api/admin/announcements?all=true');
-            const data = await res.json();
+            setError(null);
+            const data = await requestJson<unknown>('/api/admin/announcements?all=true');
+            if (!Array.isArray(data)) throw new Error('The announcements response was invalid.');
             setAnnouncements(data);
-        } catch (e) {
-            console.error('Failed to load announcements');
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to load announcements. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -46,21 +50,24 @@ export default function AdminAnnouncementsPage() {
     async function handleCreate(e: React.FormEvent) {
         e.preventDefault();
         try {
-            const res = await fetch('/api/admin/announcements', {
+            setPublishing(true);
+            setError(null);
+            await requestJson('/api/admin/announcements', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...newMsg,
                     target_roles: newMsg.target_roles.length === 0 ? null : newMsg.target_roles,
                     is_published: true
                 })
             });
-            if (res.ok) {
-                setShowAdd(false);
-                setNewMsg({ title: '', content: '', target_roles: [] });
-                void load();
-            }
-        } catch (e) {
-            alert('Failed to post announcement');
+            setShowAdd(false);
+            setNewMsg({ title: '', content: '', target_roles: [] });
+            await load();
+        } catch (error) {
+            setError(getErrorMessage(error, 'Unable to post the announcement. Please try again.'));
+        } finally {
+            setPublishing(false);
         }
     }
 
@@ -77,6 +84,8 @@ export default function AdminAnnouncementsPage() {
                     {showAdd ? 'Cancel' : 'Post New Notice'}
                 </button>
             </div>
+
+            {error && <p role="alert" className="rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
             {showAdd && (
                 <form onSubmit={handleCreate} className="p-8 border rounded-xl bg-card shadow-lg space-y-4">
@@ -123,7 +132,7 @@ export default function AdminAnnouncementsPage() {
                         />
                     </div>
                     <div className="flex justify-end">
-                        <button type="submit" className="px-6 py-2 bg-primary text-primary-foreground rounded font-bold text-sm">Publish Now</button>
+                        <button type="submit" disabled={publishing} className="px-6 py-2 bg-primary text-primary-foreground rounded font-bold text-sm disabled:opacity-50">{publishing ? 'Publishing...' : 'Publish Now'}</button>
                     </div>
                 </form>
             )}
@@ -154,6 +163,7 @@ export default function AdminAnnouncementsPage() {
                         <p className="text-slate-600 leading-relaxed text-sm whitespace-pre-wrap">{ann.content}</p>
                     </div>
                 ))}
+                {!loading && !error && announcements.length === 0 && <p className="py-12 text-center text-muted-foreground">No announcements have been posted yet.</p>}
             </div>
         </div>
     );
