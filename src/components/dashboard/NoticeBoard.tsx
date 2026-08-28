@@ -12,14 +12,18 @@ type Announcement = {
 export default function NoticeBoard() {
     const [notices, setNotices] = useState<Announcement[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const load = async () => {
             try {
                 const res = await fetch('/api/admin/announcements'); 
                 const data = await res.json();
+                if (!res.ok) throw new Error(data?.error || 'Failed to load announcements');
+                if (!Array.isArray(data)) throw new Error('Invalid announcements response');
                 setNotices(data.slice(0, 3));
             } catch (e) {
+                setError(e instanceof Error ? e.message : 'Failed to load announcements');
                 console.error('Notice Board error', e);
             } finally {
                 setLoading(false);
@@ -44,6 +48,7 @@ export default function NoticeBoard() {
         );
     }
 
+    if (error) return <p className="text-sm text-red-600">{error}</p>;
     if (notices.length === 0) return null;
 
     return (
