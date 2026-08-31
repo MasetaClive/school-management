@@ -42,79 +42,7 @@ interface StatementData {
     currentBalance: number;
 }
 
-const getMockData = (index: number, student: DBStudent): StatementData => {
-    const defaultDate = '2026-09-01';
-    
-    let charges: FeeItem[] = [];
-    let payments: PaymentItem[] = [];
 
-    switch (index % 6) {
-        case 0: // Partially Paid: Assigned $1,800, Paid $1,200, Balance $600
-            charges = [
-                { id: 'c1', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, dueDate: defaultDate },
-                { id: 'c2', name: 'Bus Transport - Route A', code: 'BUS-RTA', category: 'Transport', amount: 300, dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'p1', amount: 1200, date: '2026-08-06', method: 'Bank Transfer', reference: 'TXN-998877', feeName: 'Tuition Fee - Grade 10', notes: 'Paid Term 1 Tuition Fee' }
-            ];
-            break;
-        case 1: // Paid: Assigned $1,500, Paid $1,500, Balance $0
-            charges = [
-                { id: 'c3', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'p2', amount: 1500, date: '2026-08-06', method: 'Cash', reference: 'CSH-00234', feeName: 'Tuition Fee - Grade 10', notes: 'Tuition cash payment receipt' }
-            ];
-            break;
-        case 2: // Outstanding: Assigned $2,000, Paid $0, Balance $2,000
-            charges = [
-                { id: 'c4', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1700, dueDate: defaultDate },
-                { id: 'c5', name: 'Bus Transport - Route A', code: 'BUS-RTA', category: 'Transport', amount: 300, dueDate: defaultDate }
-            ];
-            payments = [];
-            break;
-        case 3: // Partially Paid: Assigned $1,650, Paid $1,000, Balance $650
-            charges = [
-                { id: 'c6', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, dueDate: defaultDate },
-                { id: 'c7', name: 'Science Lab Material Fee', code: 'LAB-SCI', category: 'Facility', amount: 150, dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'p3', amount: 1000, date: '2026-08-05', method: 'Card', reference: 'CRD-45903', feeName: 'Tuition Fee - Grade 10', notes: 'Part payment' }
-            ];
-            break;
-        case 4: // Paid: Assigned $1,800, Paid $1,800, Balance $0
-            charges = [
-                { id: 'c8', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, dueDate: defaultDate },
-                { id: 'c9', name: 'Bus Transport - Route A', code: 'BUS-RTA', category: 'Transport', amount: 300, dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'p4', amount: 1500, date: '2026-08-05', method: 'Bank Transfer', reference: 'TXN-998855', feeName: 'Tuition Fee - Grade 10', notes: 'Full Tuition payment' },
-                { id: 'p5', amount: 300, date: '2026-08-05', method: 'Bank Transfer', reference: 'TXN-998856', feeName: 'Bus Transport - Route A', notes: 'Full transport payment' }
-            ];
-            break;
-        case 5: // Partially Paid: Assigned $1,500, Paid $500, Balance $1,000
-        default:
-            charges = [
-                { id: 'c10', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'p6', amount: 500, date: '2026-08-04', method: 'Bank Transfer', reference: 'TXN-998844', feeName: 'Tuition Fee - Grade 10', notes: 'Part payment' }
-            ];
-            break;
-    }
-
-    const totalCharges = charges.reduce((sum, item) => sum + item.amount, 0);
-    const totalPayments = payments.reduce((sum, item) => sum + item.amount, 0);
-
-    return {
-        student,
-        charges,
-        payments,
-        totalCharges,
-        totalPayments,
-        currentBalance: totalCharges - totalPayments
-    };
-};
 
 export default function StudentStatementPage({ params }: { params: Promise<{ id: string }> }) {
     const supabase = createClient();
@@ -123,11 +51,13 @@ export default function StudentStatementPage({ params }: { params: Promise<{ id:
     const [statement, setStatement] = useState<StatementData | null>(null);
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
         async function fetchStatement() {
             try {
                 setLoading(true);
+                setErrorMessage(null);
 
                 // 1. Fetch student
                 const { data: dbStudent, error: studErr } = await supabase
@@ -142,7 +72,10 @@ export default function StudentStatementPage({ params }: { params: Promise<{ id:
                     .eq('id', id)
                     .maybeSingle();
 
-                if (studErr || !dbStudent) {
+                if (studErr) {
+                    throw new Error(`Failed to fetch student profile: ${studErr.message}`);
+                }
+                if (!dbStudent) {
                     setNotFound(true);
                     return;
                 }
@@ -161,8 +94,7 @@ export default function StudentStatementPage({ params }: { params: Promise<{ id:
                     .eq('student_id', id);
 
                 if (feesErr) {
-                    console.error(feesErr);
-                    return;
+                    throw new Error(`Failed to fetch student charges: ${feesErr.message}`);
                 }
 
                 // 3. Fetch payments
@@ -183,56 +115,44 @@ export default function StudentStatementPage({ params }: { params: Promise<{ id:
                     .eq('student_fee.student_id', id);
 
                 if (payErr) {
-                    console.error(payErr);
-                    return;
+                    throw new Error(`Failed to fetch payment history: ${payErr.message}`);
                 }
 
-                if (dbFees && dbFees.length > 0) {
-                    // Populate from database
-                    const charges: FeeItem[] = dbFees.map((f: any) => ({
-                        id: f.id,
-                        name: f.fee_type?.name || 'Assigned Fee',
-                        code: f.fee_type?.code || 'FEE',
-                        category: f.fee_type?.category || 'Others',
-                        amount: Number(f.total_amount),
-                        dueDate: f.due_date || 'N/A'
-                    }));
+                // Populate from database
+                const charges: FeeItem[] = (dbFees || []).map((f: any) => ({
+                    id: f.id,
+                    name: f.fee_type?.name || 'Assigned Fee',
+                    code: f.fee_type?.code || 'FEE',
+                    category: f.fee_type?.category || 'Others',
+                    amount: Number(f.total_amount),
+                    dueDate: f.due_date || 'N/A'
+                }));
 
-                    const payments: PaymentItem[] = (dbPayments || []).map((p: any) => ({
-                        id: p.id,
-                        amount: Number(p.amount_paid),
-                        date: p.payment_date,
-                        method: p.payment_method || 'N/A',
-                        reference: p.reference_number || 'N/A',
-                        feeName: p.student_fee?.fee_type?.name || 'Assigned Fee',
-                        notes: p.notes || ''
-                    }));
+                const payments: PaymentItem[] = (dbPayments || []).map((p: any) => ({
+                    id: p.id,
+                    amount: Number(p.amount_paid),
+                    date: p.payment_date,
+                    method: p.payment_method || 'N/A',
+                    reference: p.reference_number || 'N/A',
+                    feeName: p.student_fee?.fee_type?.name || 'Assigned Fee',
+                    notes: p.notes || ''
+                }));
 
-                    const totalCharges = charges.reduce((sum, item) => sum + item.amount, 0);
-                    const totalPayments = payments.reduce((sum, item) => sum + item.amount, 0);
+                const totalCharges = charges.reduce((sum, item) => sum + item.amount, 0);
+                const totalPayments = payments.reduce((sum, item) => sum + item.amount, 0);
 
-                    setStatement({
-                        student,
-                        charges,
-                        payments,
-                        totalCharges,
-                        totalPayments,
-                        currentBalance: totalCharges - totalPayments
-                    });
-                } else {
-                    // Fallback to matching mock metrics
-                    const { data: dbAllStudents } = await supabase
-                        .from('students')
-                        .select('id')
-                        .order('full_name', { ascending: true });
-
-                    const studentIndex = dbAllStudents?.findIndex(s => s.id === id) ?? 0;
-                    setStatement(getMockData(studentIndex, student));
-                }
+                setStatement({
+                    student,
+                    charges,
+                    payments,
+                    totalCharges,
+                    totalPayments,
+                    currentBalance: totalCharges - totalPayments
+                });
 
             } catch (e) {
                 console.error(e);
-                setNotFound(true);
+                setErrorMessage(e instanceof Error ? e.message : 'Error generating statement details.');
             } finally {
                 setLoading(false);
             }
@@ -254,6 +174,21 @@ export default function StudentStatementPage({ params }: { params: Promise<{ id:
         return (
             <div className="flex items-center justify-center min-h-screen bg-slate-50">
                 <p className="text-slate-400 font-bold uppercase tracking-widest text-xs animate-pulse">Generating Statement layout...</p>
+            </div>
+        );
+    }
+
+    if (errorMessage) {
+        return (
+            <div className="max-w-md mx-auto my-12 p-8 border border-red-200 bg-red-50 rounded-3xl text-center">
+                <p className="text-red-700 font-bold text-lg mb-2">Error Generating Statement</p>
+                <p className="text-red-600 text-sm mb-6">{errorMessage}</p>
+                <button 
+                    onClick={() => window.location.reload()}
+                    className="inline-block px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold uppercase text-xs transition-all shadow-md cursor-pointer"
+                >
+                    Retry
+                </button>
             </div>
         );
     }

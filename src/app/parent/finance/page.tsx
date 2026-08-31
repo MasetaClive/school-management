@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+
 
 interface ChildProfile {
     id: string;
@@ -33,71 +33,9 @@ interface PaymentItem {
     notes: string;
 }
 
-// Mock ledger data generator to keep parent view perfectly aligned with admin portal fallbacks
-const getMockLedger = (index: number) => {
-    const defaultDate = '2026-09-01';
-    let fees: FeeItem[] = [];
-    let payments: PaymentItem[] = [];
 
-    switch (index % 6) {
-        case 0: // Partially Paid: Assigned $1,800, Paid $1,200, Balance $600
-            fees = [
-                { id: 'm-f1', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, paidAmount: 1200, balance: 300, status: 'partial', dueDate: defaultDate },
-                { id: 'm-f2', name: 'Bus Transport - Route A', code: 'BUS-RTA', category: 'Transport', amount: 300, paidAmount: 0, balance: 300, status: 'unpaid', dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'pay-101', amount: 1200, date: '2026-08-06', method: 'Bank Transfer', reference: 'TXN-998877', feeName: 'Tuition Fee - Grade 10', notes: 'Paid Term 1 Tuition Fee' }
-            ];
-            break;
-        case 1: // Paid: Assigned $1,500, Paid $1,500, Balance $0
-            fees = [
-                { id: 'm-f3', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, paidAmount: 1500, balance: 0, status: 'paid', dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'pay-102', amount: 1500, date: '2026-08-06', method: 'Cash', reference: 'CSH-00234', feeName: 'Tuition Fee - Grade 10', notes: 'Tuition cash payment receipt' }
-            ];
-            break;
-        case 2: // Outstanding: Assigned $2,000, Paid $0, Balance $2,000
-            fees = [
-                { id: 'm-f4', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1700, paidAmount: 0, balance: 1700, status: 'unpaid', dueDate: defaultDate },
-                { id: 'm-f5', name: 'Bus Transport - Route A', code: 'BUS-RTA', category: 'Transport', amount: 300, paidAmount: 0, balance: 300, status: 'unpaid', dueDate: defaultDate }
-            ];
-            payments = [];
-            break;
-        case 3: // Partially Paid: Assigned $1,650, Paid $1,000, Balance $650
-            fees = [
-                { id: 'm-f6', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, paidAmount: 1000, balance: 500, status: 'partial', dueDate: defaultDate },
-                { id: 'm-f7', name: 'Science Lab Material Fee', code: 'LAB-SCI', category: 'Facility', amount: 150, paidAmount: 0, balance: 150, status: 'unpaid', dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'pay-104', amount: 1000, date: '2026-08-05', method: 'Card', reference: 'CRD-45903', feeName: 'Tuition Fee - Grade 10', notes: 'Part payment' }
-            ];
-            break;
-        case 4: // Paid: Assigned $1,800, Paid $1,800, Balance $0
-            fees = [
-                { id: 'm-f8', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, paidAmount: 1500, balance: 0, status: 'paid', dueDate: defaultDate },
-                { id: 'm-f9', name: 'Bus Transport - Route A', code: 'BUS-RTA', category: 'Transport', amount: 300, paidAmount: 300, balance: 0, status: 'paid', dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'pay-103', amount: 1500, date: '2026-08-05', method: 'Bank Transfer', reference: 'TXN-998855', feeName: 'Tuition Fee - Grade 10', notes: 'Full Tuition payment' }
-            ];
-            break;
-        case 5: // Partially Paid: Assigned $1,500, Paid $500, Balance $1,000
-        default:
-            fees = [
-                { id: 'm-f10', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, paidAmount: 500, balance: 1000, status: 'partial', dueDate: defaultDate }
-            ];
-            payments = [
-                { id: 'pay-105', amount: 500, date: '2026-08-04', method: 'Bank Transfer', reference: 'TXN-998844', feeName: 'Tuition Fee - Grade 10', notes: 'Part payment' }
-            ];
-            break;
-    }
-
-    return { fees, payments };
-};
 
 function ParentFinancePageContent() {
-    const supabase = createClient();
     const searchParams = useSearchParams();
 
     const statusParam = searchParams.get('status');
@@ -150,74 +88,65 @@ function ParentFinancePageContent() {
     }, []);
 
     // 2. Fetch specific child fee account details when selected child changes
-    useEffect(() => {
-        if (!selectedChildId) return;
+    const fetchChildLedger = async (childId: string) => {
+        if (!childId) return;
+        try {
+            setLoadingLedger(true);
+            setError(null);
 
-        async function fetchChildLedger() {
-            try {
-                setLoadingLedger(true);
-
-                // Fetch assigned fees
-                const feesRes = await fetch(`/api/admin/fees/student/${selectedChildId}`);
-                let feesData = [];
-                if (feesRes.ok) {
-                    feesData = await feesRes.json();
-                }
-
-                // Fetch payments
-                const paymentsRes = await fetch('/api/admin/fees/payments');
-                let allPayments = [];
-                if (paymentsRes.ok) {
-                    allPayments = await paymentsRes.json();
-                }
-                const filteredPayments = allPayments.filter((p: any) => p.student_fee?.student?.id === selectedChildId);
-
-                if (feesData && feesData.length > 0) {
-                    // Populate from DB
-                    const mappedFees: FeeItem[] = feesData.map((f: any) => ({
-                        id: f.id,
-                        name: f.fee_type?.name || 'Assigned Fee',
-                        code: f.fee_type?.code || 'FEE',
-                        category: f.fee_type?.category || 'Others',
-                        amount: Number(f.total_amount),
-                        paidAmount: Number(f.paid_amount),
-                        balance: Number(f.total_amount) - Number(f.paid_amount),
-                        status: f.status,
-                        dueDate: f.due_date || 'N/A'
-                    }));
-
-                    const mappedPayments: PaymentItem[] = filteredPayments.map((p: any) => ({
-                        id: p.id,
-                        amount: Number(p.amount_paid),
-                        date: p.payment_date,
-                        method: p.payment_method || 'N/A',
-                        reference: p.reference_number || 'N/A',
-                        feeName: p.student_fee?.fee_type?.name || 'Assigned Fee',
-                        notes: p.notes || ''
-                    }));
-
-                    setFees(mappedFees);
-                    setPayments(mappedPayments);
-                } else {
-                    // Fallback to mock item set based on child list sorting index
-                    const { data: dbAllStudents } = await supabase
-                        .from('students')
-                        .select('id')
-                        .order('full_name', { ascending: true });
-
-                    const studentIndex = dbAllStudents?.findIndex(s => s.id === selectedChildId) ?? 0;
-                    const mock = getMockLedger(studentIndex);
-                    setFees(mock.fees);
-                    setPayments(mock.payments);
-                }
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoadingLedger(false);
+            // Fetch assigned fees
+            const feesRes = await fetch(`/api/admin/fees/student/${childId}`);
+            if (!feesRes.ok) {
+                throw new Error(`Failed to fetch student fees (Status ${feesRes.status})`);
             }
+            const feesData = await feesRes.json();
+
+            // Fetch payments
+            const paymentsRes = await fetch('/api/admin/fees/payments');
+            if (!paymentsRes.ok) {
+                throw new Error(`Failed to fetch payments (Status ${paymentsRes.status})`);
+            }
+            const allPayments = await paymentsRes.json();
+            const filteredPayments = allPayments.filter((p: any) => p.student_fee?.student?.id === childId);
+
+            // Populate from DB
+            const mappedFees: FeeItem[] = (feesData || []).map((f: any) => ({
+                id: f.id,
+                name: f.fee_type?.name || 'Assigned Fee',
+                code: f.fee_type?.code || 'FEE',
+                category: f.fee_type?.category || 'Others',
+                amount: Number(f.total_amount),
+                paidAmount: Number(f.paid_amount),
+                balance: Number(f.total_amount) - Number(f.paid_amount),
+                status: f.status,
+                dueDate: f.due_date || 'N/A'
+            }));
+
+            const mappedPayments: PaymentItem[] = filteredPayments.map((p: any) => ({
+                id: p.id,
+                amount: Number(p.amount_paid),
+                date: p.payment_date,
+                method: p.payment_method || 'N/A',
+                reference: p.reference_number || 'N/A',
+                feeName: p.student_fee?.fee_type?.name || 'Assigned Fee',
+                notes: p.notes || ''
+            }));
+
+            setFees(mappedFees);
+            setPayments(mappedPayments);
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : 'Failed to fetch financial details');
+            setFees([]);
+            setPayments([]);
+        } finally {
+            setLoadingLedger(false);
         }
-        void fetchChildLedger();
-    }, [selectedChildId, supabase]);
+    };
+
+    useEffect(() => {
+        void fetchChildLedger(selectedChildId);
+    }, [selectedChildId]);
 
     // Summary calculations
     const totalCharges = fees.reduce((sum, item) => sum + item.amount, 0);
@@ -280,6 +209,23 @@ function ParentFinancePageContent() {
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-300">
 
             {/* Banners */}
+            {error && (
+                <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs font-black uppercase tracking-tight relative flex items-center justify-between">
+                    <span>⚠️ {error}</span>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => {
+                                setError(null);
+                                void fetchChildLedger(selectedChildId);
+                            }} 
+                            className="underline text-emerald-600 hover:text-emerald-700 font-black ml-4"
+                        >
+                            Retry
+                        </button>
+                        <button onClick={() => setError(null)} className="text-rose-400 hover:text-rose-600 text-sm font-black">✕</button>
+                    </div>
+                </div>
+            )}
             {statusParam === 'success' && (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl text-xs font-black uppercase tracking-tight flex items-center gap-2">
                     <span>✓</span>

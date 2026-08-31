@@ -16,77 +16,12 @@ interface PaymentRecord {
     status: 'Success';
 }
 
-const mockPayments: PaymentRecord[] = [
-    {
-        id: 'pay-101',
-        amountPaid: 1200,
-        paymentDate: '2026-08-06',
-        paymentMethod: 'bank_transfer',
-        referenceNumber: 'TXN-998877',
-        notes: 'Paid Term 1 Tuition Fee',
-        studentName: 'Sarah Jenkins',
-        studentId: 'STU-001',
-        feeName: 'Tuition Fee - Grade 10',
-        academicYear: '2026-2027',
-        status: 'Success'
-    },
-    {
-        id: 'pay-102',
-        amountPaid: 450,
-        paymentDate: '2026-08-06',
-        paymentMethod: 'cash',
-        referenceNumber: 'CSH-00234',
-        notes: 'Bus transport cash receipt',
-        studentName: 'Michael Chang',
-        studentId: 'STU-002',
-        feeName: 'Bus Transport - Route A',
-        academicYear: '2026-2027',
-        status: 'Success'
-    },
-    {
-        id: 'pay-103',
-        amountPaid: 1500,
-        paymentDate: '2026-08-05',
-        paymentMethod: 'bank_transfer',
-        referenceNumber: 'TXN-998855',
-        notes: 'Paid Term 1 Tuition Fee',
-        studentName: 'David Miller',
-        studentId: 'STU-004',
-        feeName: 'Tuition Fee - Grade 10',
-        academicYear: '2026-2027',
-        status: 'Success'
-    },
-    {
-        id: 'pay-104',
-        amountPaid: 800,
-        paymentDate: '2026-08-05',
-        paymentMethod: 'card',
-        referenceNumber: 'CRD-45903',
-        notes: 'Lab fee and sports kit card payment',
-        studentName: 'Amara Okafor',
-        studentId: 'STU-003',
-        feeName: 'Science Lab Material Fee',
-        academicYear: '2026-2027',
-        status: 'Success'
-    },
-    {
-        id: 'pay-105',
-        amountPaid: 350,
-        paymentDate: '2026-08-04',
-        paymentMethod: 'bank_transfer',
-        referenceNumber: 'TXN-998844',
-        notes: 'Bus transport payment',
-        studentName: 'Sofia Rodriguez',
-        studentId: 'STU-005',
-        feeName: 'Bus Transport - Route A',
-        academicYear: '2026-2027',
-        status: 'Success'
-    }
-];
 
 export default function PaymentHistoryPage() {
     const [payments, setPayments] = useState<PaymentRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     
     // Filters state
     const [searchQuery, setSearchQuery] = useState('');
@@ -100,44 +35,41 @@ export default function PaymentHistoryPage() {
     const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null);
 
     // Fetch payments
-    useEffect(() => {
-        async function loadPayments() {
-            try {
-                setLoading(true);
-                const res = await fetch('/api/admin/fees/payments');
-                if (res.ok) {
-                    const data = await res.json();
-                    
-                    if (data && data.length > 0) {
-                        // Map database items directly
-                        const mapped: PaymentRecord[] = data.map((p: any) => ({
-                            id: p.id,
-                            amountPaid: Number(p.amount_paid),
-                            paymentDate: p.payment_date,
-                            paymentMethod: p.payment_method,
-                            referenceNumber: p.reference_number || 'N/A',
-                            notes: p.notes || '',
-                            studentName: p.student_fee?.student?.full_name || 'Unknown Student',
-                            studentId: p.student_fee?.student?.student_id || 'N/A',
-                            feeName: p.student_fee?.fee_type?.name || 'Assigned Fee',
-                            academicYear: p.student_fee?.academic_year || '2026-2027',
-                            status: 'Success'
-                        }));
-                        setPayments(mapped);
-                    } else {
-                        // Fallback to detailed mock payments if database list is empty
-                        setPayments(mockPayments);
-                    }
-                } else {
-                    setPayments(mockPayments);
-                }
-            } catch (e) {
-                console.error(e);
-                setPayments(mockPayments);
-            } finally {
-                setLoading(false);
+    const loadPayments = async () => {
+        try {
+            setLoading(true);
+            setErrorMessage(null);
+            const res = await fetch('/api/admin/fees/payments');
+            if (res.ok) {
+                const data = await res.json();
+                
+                const mapped: PaymentRecord[] = (data || []).map((p: any) => ({
+                    id: p.id,
+                    amountPaid: Number(p.amount_paid),
+                    paymentDate: p.payment_date,
+                    paymentMethod: p.payment_method,
+                    referenceNumber: p.reference_number || 'N/A',
+                    notes: p.notes || '',
+                    studentName: p.student_fee?.student?.full_name || 'Unknown Student',
+                    studentId: p.student_fee?.student?.student_id || 'N/A',
+                    feeName: p.student_fee?.fee_type?.name || 'Assigned Fee',
+                    academicYear: p.student_fee?.academic_year || '2026-2027',
+                    status: 'Success'
+                }));
+                setPayments(mapped);
+            } else {
+                throw new Error(`Failed to fetch transactions (Status ${res.status})`);
             }
+        } catch (e) {
+            console.error(e);
+            setErrorMessage('Unable to load payment transactions from API.');
+            setPayments([]);
+        } finally {
+            setLoading(false);
         }
+    };
+
+    useEffect(() => {
         void loadPayments();
     }, []);
 
@@ -173,6 +105,25 @@ export default function PaymentHistoryPage() {
                 <h2 className="text-3xl font-black tracking-tight text-slate-900 uppercase italic font-sans">Payment Transaction History</h2>
                 <p className="text-slate-500 font-medium">Search, audit, and inspect student transaction receipts.</p>
             </div>
+
+            {/* Error notifications */}
+            {errorMessage && (
+                <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs font-black uppercase tracking-tight relative flex items-center justify-between">
+                    <span>⚠️ {errorMessage}</span>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => {
+                                setErrorMessage(null);
+                                void loadPayments();
+                            }} 
+                            className="underline text-emerald-600 hover:text-emerald-700 font-black ml-4"
+                        >
+                            Retry
+                        </button>
+                        <button onClick={() => setErrorMessage(null)} className="text-rose-400 hover:text-rose-600 text-sm font-black">✕</button>
+                    </div>
+                </div>
+            )}
 
             {/* Filters panel */}
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40 space-y-4">
