@@ -27,13 +27,6 @@ interface FeeStructure {
     }[];
 }
 
-const defaultFeeTypes: FeeType[] = [
-    { id: '1', name: 'Tuition Fee - Grade 10', code: 'TUI-GR10', category: 'Tuition', amount: 1500, active: true },
-    { id: '2', name: 'Bus Transport - Route A', code: 'BUS-RTA', category: 'Transport', amount: 300, active: true },
-    { id: '3', name: 'Science Lab Material Fee', code: 'LAB-SCI', category: 'Facility', amount: 150, active: false },
-    { id: '4', name: 'Annual Sports Kit', code: 'SPT-KIT', category: 'Uniforms', amount: 120, active: true },
-    { id: '5', name: 'Semester Assessment Exams', code: 'EXM-SEM', category: 'Exam', amount: 250, active: true }
-];
 
 const defaultFeeStructures: FeeStructure[] = [
     {
@@ -88,23 +81,30 @@ export default function FeeStructuresListPage() {
     const [selectedStatus, setSelectedStatus] = useState('All');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+    const fetchFeeTypes = async () => {
+        try {
+            const res = await fetch('/api/admin/fees/types');
+            if (!res.ok) {
+                throw new Error(`Failed to fetch fee types (Status ${res.status})`);
+            }
+            const data = await res.json();
+            const mapped: FeeType[] = data.map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                code: t.code || t.name.slice(0, 3).toUpperCase() + '-' + t.id.slice(0, 4).toUpperCase(),
+                category: t.category || 'Tuition',
+                amount: Number(t.amount),
+                active: true
+            }));
+            setFeeTypes(mapped);
+        } catch (e) {
+            console.error(e);
+            setErrorMessage('Unable to load fee types from the API. Please try again.');
+        }
+    };
+
     // Initial load
     useEffect(() => {
-        // Load fee types
-        const storedTypes = localStorage.getItem('antigravity_fee_types');
-        let currentTypes = defaultFeeTypes;
-        if (storedTypes) {
-            try {
-                currentTypes = JSON.parse(storedTypes);
-                setFeeTypes(currentTypes);
-            } catch (e) {
-                setFeeTypes(defaultFeeTypes);
-            }
-        } else {
-            setFeeTypes(defaultFeeTypes);
-            localStorage.setItem('antigravity_fee_types', JSON.stringify(defaultFeeTypes));
-        }
-
         // Load fee structures
         const storedStructs = localStorage.getItem('antigravity_fee_structures');
         if (storedStructs) {
@@ -118,6 +118,8 @@ export default function FeeStructuresListPage() {
             setFeeStructures(defaultFeeStructures);
             localStorage.setItem('antigravity_fee_structures', JSON.stringify(defaultFeeStructures));
         }
+
+        void fetchFeeTypes();
     }, []);
 
     // Save helpers
@@ -237,7 +239,20 @@ export default function FeeStructuresListPage() {
             {errorMessage && (
                 <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs font-black uppercase tracking-tight relative flex items-center justify-between">
                     <span>⚠️ {errorMessage}</span>
-                    <button onClick={() => setErrorMessage(null)} className="text-rose-400 hover:text-rose-600 text-sm ml-4 font-black">✕</button>
+                    <div className="flex gap-2">
+                        {errorMessage.includes('fee types') && (
+                            <button 
+                                onClick={() => {
+                                    setErrorMessage(null);
+                                    void fetchFeeTypes();
+                                }} 
+                                className="underline text-emerald-600 hover:text-emerald-700 font-black ml-4"
+                            >
+                                Retry
+                            </button>
+                        )}
+                        <button onClick={() => setErrorMessage(null)} className="text-rose-400 hover:text-rose-600 text-sm font-black">✕</button>
+                    </div>
                 </div>
             )}
 

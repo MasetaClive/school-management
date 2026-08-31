@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
-const PUBLIC_PATHS = ['/login', '/auth/callback', '/'];
+const PUBLIC_PATHS = ['/login', '/auth/callback', '/api/auth/callback', '/api/parent/paynow/webhook', '/'];
 const PROTECTED_NAMESPACES = ['/admin', '/teacher', '/student', '/parent'];
 
 const roleRouteMap: Record<string, string> = {
@@ -12,12 +12,31 @@ const roleRouteMap: Record<string, string> = {
 };
 
 export async function middleware(request: NextRequest) {
-  const { user, role, supabaseResponse } = await updateSession(request);
-
   const pathname = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) =>
     p === '/' ? pathname === '/' : pathname.startsWith(p)
   );
+
+  // Extract Supabase auth/session cookies
+  const allCookies = request.cookies.getAll();
+  const hasSessionCookie = allCookies.some((cookie) =>
+    cookie.name.startsWith('sb-') || cookie.name.includes('auth-token')
+  );
+
+  // 1. Public path with no session cookies -> Return early
+  if (isPublic && !hasSessionCookie) {
+    return NextResponse.next();
+  }
+
+  // 2. Protected path with no session cookies -> Redirect to login immediately
+  if (!isPublic && !hasSessionCookie) {
+    const redirect = new URL('/login', request.url);
+    redirect.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(redirect);
+  }
+
+  // 3. Otherwise (has cookies, or public but needs session verification)
+  const { user, role, supabaseResponse } = await updateSession(request);
 
   if (isPublic) {
     if (user && pathname === '/') {
