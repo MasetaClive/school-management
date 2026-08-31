@@ -41,6 +41,14 @@ export async function updateSession(request: NextRequest) {
         });
       },
     },
+    global: {
+      fetch: (url, options) => {
+        return fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(3000),
+        });
+      },
+    },
   });
 
   let user = null;
@@ -62,12 +70,18 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user) {
-    const { data } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    role = data?.role ?? null;
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      if (error) throw error;
+      role = data?.role ?? null;
+    } catch (e) {
+      console.error('[supabase middleware] role lookup failed/timed out:', e);
+      role = null;
+    }
   }
 
   return { user, role, supabaseResponse };
